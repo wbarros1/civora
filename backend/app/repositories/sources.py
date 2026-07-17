@@ -28,3 +28,24 @@ def list_sources(
         Source.model_validate(source_data)
         for source_data in (response.data or [])
     ]
+
+def get_source_by_code(code: str) -> Source:
+    """Haal één databron op aan de hand van de unieke broncode."""
+
+    client = get_supabase_client()
+
+    response = (
+        client
+        .table("sources")
+        .select("*")
+        .eq("code", code)
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
+        raise LookupError(
+            f"Databron met code '{code}' is niet gevonden."
+        )
+
+    return Source.model_validate(response.data[0])
