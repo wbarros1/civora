@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     supabase_url: str | None = None
-    supabase_service_role_key: SecretStr | None = None
+    supabase_secret_key: SecretStr | None = None
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-5-mini"
