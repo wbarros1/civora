@@ -12,6 +12,7 @@ from backend.app.schemas.ingestion import (
     RawFormat,
     RawOpportunity,
     RawUpsertResult,
+    SourceOpportunityStatus,
 )
 from backend.app.services.content_hashing import calculate_content_hash
 
@@ -210,6 +211,7 @@ def store_raw_opportunity(
     raw_format: RawFormat,
     title_hint: str | None = None,
     published_at: datetime | None = None,
+    source_status: SourceOpportunityStatus = "active",
     metadata: dict[str, Any] | None = None,
 ) -> RawUpsertResult:
     """
@@ -266,7 +268,7 @@ def store_raw_opportunity(
             "raw_format": raw_format,
             "raw_content": raw_content,
             "content_hash": content_hash,
-            "source_status": "active",
+            "source_status": source_status,
             "processing_status": "pending",
             "latest_fetch_run_id": str(fetch_run_id),
             "published_at": (
@@ -324,6 +326,7 @@ def store_raw_opportunity(
     if existing_opportunity.content_hash == content_hash:
         update_payload = {
             "source_url": source_url,
+            "source_status": source_status,
             "last_seen_at": now.isoformat(),
             "latest_fetch_run_id": str(fetch_run_id),
             "metadata": opportunity_metadata,
@@ -369,6 +372,7 @@ def store_raw_opportunity(
 
     changed_payload = {
         "source_url": source_url,
+        "source_status": source_status,
         "title_hint": title_hint,
         "raw_format": raw_format,
         "raw_content": raw_content,

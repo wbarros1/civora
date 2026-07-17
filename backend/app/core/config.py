@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     user_agent: str = "PublicInhuurPlatform/0.1"
     request_timeout_seconds: int = 30
 
+    scraper_request_delay_seconds: float = 1.0
+    scraper_max_items_per_run: int = 10
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
