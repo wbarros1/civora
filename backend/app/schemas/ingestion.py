@@ -95,6 +95,7 @@ class RawOpportunity(BaseModel):
     raw_format: RawFormat
     raw_content: str
     content_hash: str
+    normalized_content_hash: str | None = None
 
     source_status: SourceOpportunityStatus
     processing_status: ProcessingStatus
@@ -128,6 +129,7 @@ class RawOpportunityVersion(BaseModel):
     raw_format: RawFormat
     raw_content: str
     content_hash: str
+    normalized_content_hash: str | None = None
 
     metadata: dict[str, Any]
     created_at: datetime

@@ -178,6 +178,178 @@ def discover_opportunities(
 
     return list(discovered.values())
 
+def _normalize_title_candidate(
+    value: str,
+) -> str | None:
+    """Maak een mogelijke Flextender-functietitel schoon."""
+
+    candidate = re.sub(
+        r"\s+",
+        " ",
+        html.unescape(value),
+    ).strip()
+
+    if not candidate:
+        return None
+
+    generic_titles = {
+        "opdracht",
+        "opdrachten",
+        "flextender",
+        "flextender office",
+        "flextender office - flextender",
+    }
+
+    if candidate.lower() in generic_titles:
+        return None
+
+    flextender_suffixes = (
+        " | Flextender",
+        " - Flextender",
+    )
+
+    for suffix in flextender_suffixes:
+        if candidate.endswith(suffix):
+            candidate = candidate[
+                :-len(suffix)
+            ].strip()
+
+    if candidate.lower() in generic_titles:
+        return None
+
+    return candidate or None
+
+
+def _parse_title_from_assignment_block(
+    soup: BeautifulSoup,
+) -> str | None:
+    """
+    Zoek de titel tussen 'Opdracht' en 'Aanvraagnummer'.
+
+    Op Flextender staat hier doorgaans:
+    Opdracht → functietitel → opdrachtgever → Aanvraagnummer.
+    """
+
+    text_parts = [
+        re.sub(
+            r"\s+",
+            " ",
+            text,
+        ).strip()
+        for text in soup.stripped_strings
+        if text.strip()
+    ]
+
+    for reference_index, text in enumerate(
+        text_parts
+    ):
+        if text.lower() != "aanvraagnummer":
+            continue
+
+        for index in range(
+            reference_index - 1,
+            -1,
+            -1,
+        ):
+            if text_parts[index].lower() != "opdracht":
+                continue
+
+            candidates = text_parts[
+                index + 1:reference_index
+            ]
+
+            for candidate in candidates:
+                normalized_candidate = (
+                    _normalize_title_candidate(
+                        candidate
+                    )
+                )
+
+                if normalized_candidate:
+                    return normalized_candidate
+
+            break
+
+    return None
+
+
+def _parse_title_from_metadata(
+    soup: BeautifulSoup,
+) -> str | None:
+    """Haal een titel veilig uit Open Graph- of Twittermetadata."""
+
+    metadata_selectors = (
+        'meta[property="og:title"]',
+        'meta[name="twitter:title"]',
+    )
+
+    for selector in metadata_selectors:
+        element = soup.select_one(selector)
+
+        if element is None:
+            continue
+
+        attributes = getattr(
+            element,
+            "attrs",
+            None,
+        ) or {}
+
+        content = attributes.get("content")
+
+        if not isinstance(content, str):
+            continue
+
+        candidate = _normalize_title_candidate(
+            content
+        )
+
+        if candidate is None:
+            continue
+
+        if " - " in candidate:
+            candidate = candidate.rsplit(
+                " - ",
+                1,
+            )[0].strip()
+
+        return _normalize_title_candidate(
+            candidate
+        )
+
+    return None
+
+def _parse_title_from_document_title(
+    soup: BeautifulSoup,
+) -> str | None:
+    """Gebruik het HTML-title-element als laatste fallback."""
+
+    title_element = soup.find("title")
+
+    if title_element is None:
+        return None
+
+    title_text = title_element.get_text(
+        " ",
+        strip=True,
+    )
+
+    candidate = _normalize_title_candidate(
+        title_text
+    )
+
+    if candidate is None:
+        return None
+
+    if " - " in candidate:
+        candidate = candidate.rsplit(
+            " - ",
+            1,
+        )[0].strip()
+
+    return _normalize_title_candidate(
+        candidate
+    )
 
 def parse_title_hint(
     page_html: str,
@@ -189,34 +361,38 @@ def parse_title_hint(
         "html.parser",
     )
 
-    excluded_titles = {
-        "opdracht",
-        "opdrachten",
-        "flextender",
-        "flextender office",
-    }
+    assignment_title = (
+        _parse_title_from_assignment_block(
+            soup
+        )
+    )
+
+    if assignment_title:
+        return assignment_title
 
     for heading in soup.find_all(
         ["h1", "h2", "h3"],
     ):
-        title = heading.get_text(
-            " ",
-            strip=True,
+        candidate = _normalize_title_candidate(
+            heading.get_text(
+                " ",
+                strip=True,
+            )
         )
 
-        if not title:
-            continue
+        if candidate:
+            return candidate
 
-        if title.lower() in excluded_titles:
-            continue
+    metadata_title = _parse_title_from_metadata(
+        soup
+    )
 
-        if len(title) < 3:
-            continue
+    if metadata_title:
+        return metadata_title
 
-        return title
-
-    return None
-
+    return _parse_title_from_document_title(
+        soup
+    )
 
 def validate_detail_page(
     *,

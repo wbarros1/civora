@@ -14,7 +14,10 @@ from backend.app.schemas.ingestion import (
     RawUpsertResult,
     SourceOpportunityStatus,
 )
-from backend.app.services.content_hashing import calculate_content_hash
+from backend.app.services.content_hashing import (
+    calculate_content_hash,
+    calculate_normalized_content_hash,
+)
 
 
 def utc_now() -> datetime:
@@ -176,6 +179,7 @@ def _insert_raw_version(
     raw_format: RawFormat,
     raw_content: str,
     content_hash: str,
+    normalized_content_hash: str,
     metadata: dict[str, Any],
 ) -> None:
     """Sla een onveranderlijke ruwe versie op."""
@@ -190,6 +194,7 @@ def _insert_raw_version(
         "raw_format": raw_format,
         "raw_content": raw_content,
         "content_hash": content_hash,
+        "normalized_content_hash": normalized_content_hash,
         "metadata": metadata,
     }
 
@@ -240,7 +245,17 @@ def store_raw_opportunity(
 
     client = get_supabase_client()
     now = utc_now()
-    content_hash = calculate_content_hash(raw_content)
+    content_hash = calculate_content_hash(
+        raw_content
+    )
+
+    normalized_content_hash = (
+        calculate_normalized_content_hash(
+            content=raw_content,
+            raw_format=raw_format,
+        )
+    )
+
     opportunity_metadata = metadata or {}
 
     existing_response = (
@@ -268,6 +283,9 @@ def store_raw_opportunity(
             "raw_format": raw_format,
             "raw_content": raw_content,
             "content_hash": content_hash,
+            "normalized_content_hash": (
+                normalized_content_hash
+            ),
             "source_status": source_status,
             "processing_status": "pending",
             "latest_fetch_run_id": str(fetch_run_id),
@@ -306,6 +324,9 @@ def store_raw_opportunity(
             raw_format=raw_format,
             raw_content=raw_content,
             content_hash=content_hash,
+            normalized_content_hash=(
+                normalized_content_hash
+            ),
             metadata=opportunity_metadata,
         )
 
@@ -323,10 +344,31 @@ def store_raw_opportunity(
         existing_opportunity.id
     )
 
-    if existing_opportunity.content_hash == content_hash:
+    existing_normalized_content_hash = (
+        existing_opportunity.normalized_content_hash
+    )
+
+    if existing_normalized_content_hash is None:
+        existing_normalized_content_hash = (
+            calculate_normalized_content_hash(
+                content=existing_opportunity.raw_content,
+                raw_format=existing_opportunity.raw_format,
+            )
+        )
+
+    if (
+        existing_normalized_content_hash
+        == normalized_content_hash
+    ):
         update_payload = {
             "source_url": source_url,
             "source_status": source_status,
+            "raw_format": raw_format,
+            "raw_content": raw_content,
+            "content_hash": content_hash,
+            "normalized_content_hash": (
+                normalized_content_hash
+            ),
             "last_seen_at": now.isoformat(),
             "latest_fetch_run_id": str(fetch_run_id),
             "metadata": opportunity_metadata,
@@ -367,7 +409,16 @@ def store_raw_opportunity(
         raw_format=raw_format,
         raw_content=raw_content,
         content_hash=content_hash,
+        normalized_content_hash=(
+            normalized_content_hash
+        ),
         metadata=opportunity_metadata,
+    )
+
+    existing_published_at = (
+        published_at
+        if published_at is not None
+        else existing_opportunity.published_at
     )
 
     changed_payload = {
@@ -377,12 +428,15 @@ def store_raw_opportunity(
         "raw_format": raw_format,
         "raw_content": raw_content,
         "content_hash": content_hash,
+        "normalized_content_hash": (
+            normalized_content_hash
+        ),
         "processing_status": "pending",
         "latest_fetch_run_id": str(fetch_run_id),
         "published_at": (
-            published_at.isoformat()
-            if published_at
-            else existing_data.get("published_at")
+            existing_published_at.isoformat()
+            if existing_published_at is not None
+            else None
         ),
         "last_seen_at": now.isoformat(),
         "metadata": opportunity_metadata,

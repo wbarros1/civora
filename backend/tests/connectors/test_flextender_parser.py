@@ -111,3 +111,103 @@ def test_detects_closed_opportunity() -> None:
     """
 
     assert detect_source_status(page_html) == "closed"
+
+def test_parses_title_from_assignment_block() -> None:
+    """Haal de titel tussen Opdracht en Aanvraagnummer op."""
+
+    page_html = """
+    <html>
+        <body>
+            <div>Opdracht</div>
+            <div>Azure Netwerk Engineer</div>
+            <div>Kadaster</div>
+            <div>Aanvraagnummer</div>
+            <div>30335</div>
+        </body>
+    </html>
+    """
+
+    assert (
+        parse_title_hint(page_html)
+        == "Azure Netwerk Engineer"
+    )
+
+
+def test_parses_title_from_metadata() -> None:
+    """Gebruik Open Graph als de opdrachtsectie ontbreekt."""
+
+    page_html = """
+    <html>
+        <head>
+            <meta
+                property="og:title"
+                content="
+                    Senior Beleidsadviseur OOV
+                    - Gemeente Midden-Delfland
+                "
+            >
+        </head>
+        <body></body>
+    </html>
+    """
+
+    assert (
+        parse_title_hint(page_html)
+        == "Senior Beleidsadviseur OOV"
+    )
+
+
+def test_ignores_generic_document_title() -> None:
+    """Een algemene Flextender-titel is geen functietitel."""
+
+    page_html = """
+    <html>
+        <head>
+            <title>
+                Flextender Office - Flextender
+            </title>
+        </head>
+        <body></body>
+    </html>
+    """
+
+    assert parse_title_hint(page_html) is None
+
+def test_metadata_parser_handles_missing_content() -> None:
+    """Een meta-element zonder content mag geen fout veroorzaken."""
+
+    page_html = """
+    <html>
+        <head>
+            <meta property="og:title">
+            <meta
+                name="twitter:title"
+                content="
+                    Senior Beleidsadviseur OOV
+                    - Gemeente Midden-Delfland
+                "
+            >
+        </head>
+        <body></body>
+    </html>
+    """
+
+    assert (
+        parse_title_hint(page_html)
+        == "Senior Beleidsadviseur OOV"
+    )
+
+
+def test_title_parser_handles_missing_metadata() -> None:
+    """Ontbrekende metadata geeft netjes None terug."""
+
+    page_html = """
+    <html>
+        <head></head>
+        <body>
+            <p>Geen functietitel aanwezig</p>
+        </body>
+    </html>
+    """
+
+    assert parse_title_hint(page_html) is None
