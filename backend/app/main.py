@@ -3,19 +3,23 @@
 from fastapi import FastAPI
 
 from backend.app.api.router import api_router
+from backend.app.core.config import get_settings
+
+settings = get_settings()
 
 app = FastAPI(
-    title="Public Inhuur Platform API",
+    title=settings.app_name,
     description=(
         "API voor het verzamelen, structureren en doorzoekbaar maken "
         "van openbare publieke inhuuropdrachten."
     ),
-    version="0.1.0",
+    version=settings.app_version,
+    debug=settings.app_debug,
 )
 
 app.include_router(
     api_router,
-    prefix="/api/v1",
+    prefix=settings.api_v1_prefix,
 )
 
 
@@ -28,8 +32,9 @@ async def root() -> dict[str, str]:
     """Toon algemene informatie over de API."""
 
     return {
-        "application": "Public Inhuur Platform API",
-        "version": "0.1.0",
+        "application": settings.app_name,
+        "version": settings.app_version,
+        "environment": settings.app_env,
         "documentation": "/docs",
-        "health": "/api/v1/health",
+        "health": f"{settings.api_v1_prefix}/health",
     }
