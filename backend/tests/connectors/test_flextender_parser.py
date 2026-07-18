@@ -7,6 +7,10 @@ from backend.app.connectors.flextender.parser import (
     discover_opportunities,
     parse_title_hint,
     validate_detail_page,
+    build_detail_url,
+    parse_listing_references,
+    parse_search_result_html,
+    parse_widget_config,
 )
 
 
@@ -211,3 +215,77 @@ def test_title_parser_handles_missing_metadata() -> None:
     """
 
     assert parse_title_hint(page_html) is None
+
+def test_parse_widget_config() -> None:
+    """Haal de versleutelde widgetconfiguratie uit HTML."""
+
+    page_html = """
+    <form>
+        <input
+            type="hidden"
+            name="kbs_flx_widget_config"
+            value="ABC123XYZ"
+        >
+    </form>
+    """
+
+    assert (
+        parse_widget_config(page_html)
+        == "ABC123XYZ"
+    )
+
+
+def test_parse_search_result_html() -> None:
+    """Lees resultHtml uit de AJAX-response."""
+
+    response_data = {
+        "resultHtml": "<div>Resultaten</div>",
+    }
+
+    assert (
+        parse_search_result_html(
+            response_data
+        )
+        == "<div>Resultaten</div>"
+    )
+
+
+def test_parse_listing_references() -> None:
+    """Lees unieke referenties en behoud hun volgorde."""
+
+    result_html = """
+    <a href="/nologin/jobdetails/30959">
+        Eerste opdracht
+    </a>
+
+    <a href="https:\\/\\/app.flextender.nl\\/nologin\\/jobdetails\\/30841">
+        Tweede opdracht
+    </a>
+
+    <a href="/nologin/jobdetails/30959">
+        Dubbele eerste opdracht
+    </a>
+
+    <a href="/opdracht/?aanvraagnr=30740">
+        Derde opdracht
+    </a>
+    """
+
+    assert parse_listing_references(
+        result_html
+    ) == [
+        "30959",
+        "30841",
+        "30740",
+    ]
+
+
+def test_build_detail_url() -> None:
+    """Bouw de vaste app.flextender.nl-detail-URL."""
+
+    assert build_detail_url(
+        "30959"
+    ) == (
+        "https://app.flextender.nl/"
+        "nologin/jobdetails/30959"
+    )

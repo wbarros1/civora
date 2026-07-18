@@ -1,6 +1,7 @@
 """HTTP-client voor openbare Flextender-pagina's."""
 
 import time
+from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -23,6 +24,7 @@ class FlextenderHttpClient:
         )
 
         self._user_agent = user_agent
+
         self._client = httpx.Client(
             headers={
                 "User-Agent": user_agent,
@@ -30,9 +32,13 @@ class FlextenderHttpClient:
                     "text/html,application/xhtml+xml,"
                     "application/xml;q=0.9,*/*;q=0.8"
                 ),
-                "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.7",
+                "Accept-Language": (
+                    "nl-NL,nl;q=0.9,en;q=0.7"
+                ),
             },
-            timeout=httpx.Timeout(timeout_seconds),
+            timeout=httpx.Timeout(
+                timeout_seconds
+            ),
             follow_redirects=True,
             transport=transport,
         )
@@ -42,7 +48,9 @@ class FlextenderHttpClient:
             RobotFileParser | None,
         ] = {}
 
-    def __enter__(self) -> "FlextenderHttpClient":
+    def __enter__(
+        self,
+    ) -> "FlextenderHttpClient":
         """Ondersteun gebruik als contextmanager."""
 
         return self
@@ -63,7 +71,9 @@ class FlextenderHttpClient:
         self._client.close()
 
     @staticmethod
-    def _get_origin(url: str) -> str:
+    def _get_origin(
+        url: str,
+    ) -> str:
         """Bepaal scheme en host van een URL."""
 
         parsed_url = urlparse(url)
@@ -86,36 +96,52 @@ class FlextenderHttpClient:
         origin = self._get_origin(url)
 
         if origin in self._robots_by_origin:
-            return self._robots_by_origin[origin]
+            return self._robots_by_origin[
+                origin
+            ]
 
         robots_url = f"{origin}/robots.txt"
 
         try:
-            response = self._client.get(robots_url)
+            response = self._client.get(
+                robots_url
+            )
         except httpx.HTTPError as exc:
             raise RuntimeError(
-                f"robots.txt kon niet worden opgehaald: "
+                "robots.txt kon niet worden opgehaald: "
                 f"{robots_url}"
             ) from exc
 
         if response.status_code == 404:
-            self._robots_by_origin[origin] = None
+            self._robots_by_origin[
+                origin
+            ] = None
+
             return None
 
         response.raise_for_status()
 
         parser = RobotFileParser()
         parser.set_url(robots_url)
-        parser.parse(response.text.splitlines())
+        parser.parse(
+            response.text.splitlines()
+        )
 
-        self._robots_by_origin[origin] = parser
+        self._robots_by_origin[
+            origin
+        ] = parser
 
         return parser
 
-    def assert_allowed(self, url: str) -> None:
+    def assert_allowed(
+        self,
+        url: str,
+    ) -> None:
         """Controleer of robots.txt het verzoek toestaat."""
 
-        parser = self._get_robots_parser(url)
+        parser = self._get_robots_parser(
+            url
+        )
 
         if parser is None:
             return
@@ -125,7 +151,8 @@ class FlextenderHttpClient:
             url,
         ):
             raise PermissionError(
-                f"robots.txt staat ophalen niet toe: {url}"
+                "robots.txt staat ophalen niet toe: "
+                f"{url}"
             )
 
     def get_html(
@@ -142,6 +169,7 @@ class FlextenderHttpClient:
             time.sleep(delay_seconds)
 
         response = self._client.get(url)
+
         response.raise_for_status()
 
         content_type = response.headers.get(
@@ -155,13 +183,122 @@ class FlextenderHttpClient:
             and "xhtml" not in content_type
         ):
             raise ValueError(
-                "Onverwacht content-type voor HTML-pagina: "
+                "Onverwacht content-type voor "
+                "HTML-pagina: "
                 f"{content_type}"
             )
 
         if not response.text.strip():
             raise ValueError(
-                f"Flextender retourneerde een lege pagina: {url}"
+                "Flextender retourneerde een "
+                f"lege pagina: {url}"
             )
 
         return response
+
+    def post_search_jobs(
+        self,
+        *,
+        ajax_url: str,
+        widget_config: str,
+        delay_seconds: float = 0,
+    ) -> dict[str, Any]:
+        """
+        Voer de openbare Flextender AJAX-zoekopdracht uit.
+
+        Flextender gebruikt hiervoor het WordPress-endpoint
+        wp-admin/admin-ajax.php met de actie kbs_flx_searchjobs.
+        """
+
+        if not widget_config.strip():
+            raise ValueError(
+                "De Flextender-widgetconfiguratie "
+                "mag niet leeg zijn."
+            )
+
+        self.assert_allowed(
+            ajax_url
+        )
+
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
+
+        multipart_fields = {
+            "kbs_flx_widget_config": (
+                None,
+                widget_config,
+            ),
+            "action": (
+                None,
+                "kbs_flx_searchjobs",
+            ),
+            "kbs_flx_joblsrc_freetext": (
+                None,
+                "",
+            ),
+            "StackOverflow1370021": (
+                None,
+                "Fix autosubmit bug",
+            ),
+            "_charset_": (
+                None,
+                "UTF-8",
+            ),
+        }
+
+        response = self._client.post(
+            ajax_url,
+            files=multipart_fields,
+            headers={
+                "Accept": (
+                    "application/json, "
+                    "text/javascript, "
+                    "*/*; q=0.01"
+                ),
+                "Origin": (
+                    "https://www.flextender.nl"
+                ),
+                "Referer": (
+                    "https://www.flextender.nl/"
+                    "opdrachten/"
+                ),
+                "X-Requested-With": (
+                    "XMLHttpRequest"
+                ),
+            },
+        )
+
+        response.raise_for_status()
+
+        if not response.text.strip():
+            raise ValueError(
+                "De Flextender AJAX-call "
+                "retourneerde een lege response."
+            )
+
+        try:
+            response_data = response.json()
+        except ValueError as exc:
+            content_type = (
+                response.headers.get(
+                    "content-type",
+                    "",
+                )
+            )
+
+            raise ValueError(
+                "De Flextender AJAX-response "
+                "bevatte geen geldige JSON. "
+                f"Content-Type: {content_type}"
+            ) from exc
+
+        if not isinstance(
+            response_data,
+            dict,
+        ):
+            raise ValueError(
+                "De Flextender AJAX-response "
+                "is geen JSON-object."
+            )
+
+        return response_data

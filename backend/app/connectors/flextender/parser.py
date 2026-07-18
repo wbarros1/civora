@@ -2,6 +2,7 @@
 
 import html
 import re
+from typing import Any
 from dataclasses import dataclass
 from urllib.parse import (
     parse_qs,
@@ -13,6 +14,24 @@ from bs4 import BeautifulSoup
 
 from backend.app.schemas.ingestion import (
     SourceOpportunityStatus,
+)
+
+FLEXTENDER_DETAIL_BASE_URL = (
+    "https://app.flextender.nl/nologin/jobdetails"
+)
+
+FLEXTENDER_REFERENCE_PATTERN = re.compile(
+    r"""
+    (?:
+        /nologin/jobdetails/
+        |
+        jobdetails/
+        |
+        aanvraagnr=
+    )
+    (?P<reference>\d+)
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 
 
@@ -57,6 +76,159 @@ class DiscoveredOpportunity:
     source_reference: str
     source_url: str
 
+def parse_widget_config(
+    page_html: str,
+) -> str:
+    """Haal de Flextender-widgetconfiguratie uit de opdrachtenpagina."""
+
+    soup = BeautifulSoup(
+        page_html,
+        "html.parser",
+    )
+
+    config_element = soup.select_one(
+        '[name="kbs_flx_widget_config"]'
+    )
+
+    if config_element is not None:
+        attributes = getattr(
+            config_element,
+            "attrs",
+            None,
+        )
+
+        if isinstance(attributes, dict):
+            value = attributes.get("value")
+
+            if isinstance(value, str) and value.strip():
+                return html.unescape(
+                    value
+                ).strip()
+
+        element_text = config_element.get_text(
+            strip=True,
+        )
+
+        if element_text:
+            return html.unescape(
+                element_text
+            ).strip()
+
+    fallback_patterns = (
+        re.compile(
+            r"""
+            name=["']kbs_flx_widget_config["']
+            [^>]*?
+            value=["'](?P<value>[^"']+)["']
+            """,
+            re.IGNORECASE | re.VERBOSE,
+        ),
+        re.compile(
+            r"""
+            value=["'](?P<value>[^"']+)["']
+            [^>]*?
+            name=["']kbs_flx_widget_config["']
+            """,
+            re.IGNORECASE | re.VERBOSE,
+        ),
+    )
+
+    for pattern in fallback_patterns:
+        match = pattern.search(page_html)
+
+        if match is not None:
+            return html.unescape(
+                match.group("value")
+            ).strip()
+
+    raise ValueError(
+        "kbs_flx_widget_config is niet gevonden "
+        "in de Flextender-opdrachtenpagina."
+    )
+
+def parse_search_result_html(
+    response_data: Any,
+) -> str:
+    """Haal resultHtml veilig uit de Flextender AJAX-response."""
+
+    if not isinstance(response_data, dict):
+        raise ValueError(
+            "De Flextender AJAX-response is geen object."
+        )
+
+    result_html = response_data.get(
+        "resultHtml"
+    )
+
+    if not isinstance(result_html, str):
+        raise ValueError(
+            "De Flextender AJAX-response bevat geen "
+            "geldige resultHtml-waarde."
+        )
+
+    if not result_html.strip():
+        raise ValueError(
+            "De Flextender AJAX-response bevat lege resultHtml."
+        )
+
+    return result_html
+
+def parse_listing_references(
+    result_html: str,
+) -> list[str]:
+    """
+    Haal unieke aanvraagreferenties uit resultHtml.
+
+    De volgorde uit de Flextender-resultatenlijst blijft behouden.
+    """
+
+    normalized_html = html.unescape(
+        result_html
+    ).replace(
+        r"\/",
+        "/",
+    )
+
+    references: list[str] = []
+    seen_references: set[str] = set()
+
+    for match in FLEXTENDER_REFERENCE_PATTERN.finditer(
+        normalized_html
+    ):
+        source_reference = match.group(
+            "reference"
+        )
+
+        if source_reference in seen_references:
+            continue
+
+        seen_references.add(
+            source_reference
+        )
+        references.append(
+            source_reference
+        )
+
+    return references
+
+def build_detail_url(
+    source_reference: str,
+) -> str:
+    """Bouw de vaste Flextender-detail-URL."""
+
+    cleaned_reference = (
+        source_reference.strip()
+    )
+
+    if not cleaned_reference.isdigit():
+        raise ValueError(
+            "Een Flextender-referentie moet numeriek zijn."
+        )
+
+    return (
+        f"{FLEXTENDER_DETAIL_BASE_URL}/"
+        f"{cleaned_reference}"
+    )
 
 def extract_source_reference(
     url: str,
@@ -90,7 +262,6 @@ def extract_source_reference(
 
     return None
 
-
 def canonicalize_detail_url(
     url: str,
     source_reference: str,
@@ -112,7 +283,6 @@ def canonicalize_detail_url(
         "https://www.flextender.nl/"
         f"opdracht/?aanvraagnr={source_reference}"
     )
-
 
 def discover_opportunities(
     *,
@@ -219,7 +389,6 @@ def _normalize_title_candidate(
 
     return candidate or None
 
-
 def _parse_title_from_assignment_block(
     soup: BeautifulSoup,
 ) -> str | None:
@@ -271,7 +440,6 @@ def _parse_title_from_assignment_block(
             break
 
     return None
-
 
 def _parse_title_from_metadata(
     soup: BeautifulSoup,
@@ -421,7 +589,6 @@ def validate_detail_page(
             "Het gevonden aanvraagnummer komt niet "
             "voor in de detailpagina."
         )
-
 
 def detect_source_status(
     page_html: str,
