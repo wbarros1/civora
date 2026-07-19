@@ -1,5 +1,5 @@
 """Databasequeries voor bronophalingen en ruwe opdrachten."""
-
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -18,13 +18,15 @@ from backend.app.services.content_hashing import (
     calculate_content_hash,
     calculate_normalized_content_hash,
 )
+from backend.app.services.source_lifecycle import (
+    evaluate_missing_closure_safety,
+)
 
 
 def utc_now() -> datetime:
     """Geef de huidige datum en tijd in UTC terug."""
 
     return datetime.now(timezone.utc)
-
 
 def create_fetch_run(
     *,
@@ -61,7 +63,6 @@ def create_fetch_run(
         )
 
     return FetchRun.model_validate(response.data[0])
-
 
 def finish_fetch_run(
     *,
@@ -138,7 +139,6 @@ def finish_fetch_run(
 
     return FetchRun.model_validate(response.data[0])
 
-
 def _get_latest_version_number(
     raw_opportunity_id: UUID,
 ) -> int:
@@ -168,7 +168,6 @@ def _get_latest_version_number(
     return int(
         response.data[0]["version_number"]
     )
-
 
 def _insert_raw_version(
     *,
@@ -204,7 +203,6 @@ def _insert_raw_version(
         .insert(payload)
         .execute()
     )
-
 
 def store_raw_opportunity(
     *,
@@ -462,4 +460,303 @@ def store_raw_opportunity(
             changed_response.data[0]
         ),
         version_number=new_version_number,
+    )
+
+@dataclass(
+    frozen=True,
+    slots=True,
+)
+class MissingOpportunityClosureResult:
+    """Resultaat van het sluiten van verdwenen opdrachten."""
+
+    executed: bool
+    closed_count: int
+    closed_references: tuple[str, ...]
+    current_discovered_count: int
+    previous_discovered_count: int | None
+    minimum_allowed_count: int | None
+    skipped_reason: str | None
+
+def _get_previous_successful_full_run_count(
+    *,
+    source_id: UUID,
+) -> int | None:
+    """Vind de laatste succesvolle volledige run."""
+
+    client = get_supabase_client()
+
+    response = (
+        client.table("fetch_runs")
+        .select(
+            "id,items_discovered,metadata,created_at"
+        )
+        .eq(
+            "source_id",
+            str(source_id),
+        )
+        .eq(
+            "status",
+            "succeeded",
+        )
+        .order(
+            "created_at",
+            desc=True,
+        )
+        .limit(50)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+
+        metadata = row.get("metadata")
+
+        if not isinstance(metadata, dict):
+            continue
+
+        if metadata.get("mode") != "full":
+            continue
+
+        items_discovered = row.get(
+            "items_discovered"
+        )
+
+        if isinstance(
+            items_discovered,
+            int,
+        ):
+            return items_discovered
+
+    return None
+
+
+def _list_active_source_opportunities(
+    *,
+    source_id: UUID,
+    page_size: int = 500,
+) -> list[dict[str, Any]]:
+    """Lees alle actieve opdrachten van één bron op."""
+
+    client = get_supabase_client()
+
+    rows: list[dict[str, Any]] = []
+    offset = 0
+
+    while True:
+        response = (
+            client.table("raw_opportunities")
+            .select(
+                "id,source_reference,source_status"
+            )
+            .eq(
+                "source_id",
+                str(source_id),
+            )
+            .eq(
+                "source_status",
+                "active",
+            )
+            .range(
+                offset,
+                offset + page_size - 1,
+            )
+            .execute()
+        )
+
+        page_rows = response.data or []
+
+        rows.extend(
+            row
+            for row in page_rows
+            if isinstance(row, dict)
+        )
+
+        if len(page_rows) < page_size:
+            break
+
+        offset += page_size
+
+    return rows
+
+
+def close_missing_raw_opportunities(
+    *,
+    source_id: UUID,
+    fetch_run_id: UUID,
+    discovered_references: set[str],
+    minimum_discovered_count: int = 50,
+    minimum_previous_ratio: float = 0.70,
+    update_batch_size: int = 100,
+) -> MissingOpportunityClosureResult:
+    """
+    Sluit actieve opdrachten die niet meer zijn ontdekt.
+
+    De actie wordt alleen uitgevoerd wanneer de discovery voldoende
+    groot is ten opzichte van de vorige succesvolle volledige run.
+    """
+
+    cleaned_references = {
+        reference.strip()
+        for reference in discovered_references
+        if reference.strip().isdigit()
+    }
+
+    current_discovered_count = len(
+        cleaned_references
+    )
+
+    previous_discovered_count = (
+        _get_previous_successful_full_run_count(
+            source_id=source_id
+        )
+    )
+
+    safety_decision = (
+        evaluate_missing_closure_safety(
+            current_discovered_count=(
+                current_discovered_count
+            ),
+            previous_discovered_count=(
+                previous_discovered_count
+            ),
+            minimum_discovered_count=(
+                minimum_discovered_count
+            ),
+            minimum_previous_ratio=(
+                minimum_previous_ratio
+            ),
+        )
+    )
+
+    if not safety_decision.allowed:
+        return MissingOpportunityClosureResult(
+            executed=False,
+            closed_count=0,
+            closed_references=(),
+            current_discovered_count=(
+                current_discovered_count
+            ),
+            previous_discovered_count=(
+                previous_discovered_count
+            ),
+            minimum_allowed_count=(
+                safety_decision.minimum_allowed_count
+            ),
+            skipped_reason=(
+                safety_decision.reason
+            ),
+        )
+
+    active_rows = (
+        _list_active_source_opportunities(
+            source_id=source_id
+        )
+    )
+
+    missing_rows: list[
+        dict[str, Any]
+    ] = []
+
+    for row in active_rows:
+        source_reference = row.get(
+            "source_reference"
+        )
+
+        record_id = row.get(
+            "id"
+        )
+
+        if not isinstance(
+            source_reference,
+            str,
+        ):
+            continue
+
+        if not isinstance(
+            record_id,
+            str,
+        ):
+            continue
+
+        cleaned_source_reference = (
+            source_reference.strip()
+        )
+
+        if not cleaned_source_reference:
+            continue
+
+        if not cleaned_source_reference.isdigit():
+            # Lokale fixtures en andere niet-productiereferenties
+            # mogen niet door de productie-closure worden gewijzigd.
+            continue
+
+        if (
+            cleaned_source_reference
+            not in cleaned_references
+        ):
+            missing_rows.append(
+                row
+            )
+
+    client = get_supabase_client()
+
+    for start_index in range(
+        0,
+        len(missing_rows),
+        update_batch_size,
+    ):
+        current_batch = missing_rows[
+            start_index:
+            start_index + update_batch_size
+        ]
+
+        record_ids = [
+            row["id"]
+            for row in current_batch
+        ]
+
+        (
+            client.table("raw_opportunities")
+            .update(
+                {
+                    "source_status": "closed",
+                    "processing_status": "pending",
+                    "latest_fetch_run_id": str(
+                        fetch_run_id
+                    ),
+                }
+            )
+            .in_(
+                "id",
+                record_ids,
+            )
+            .execute()
+        )
+
+    closed_references = tuple(
+        str(row["source_reference"])
+        for row in missing_rows
+    )
+
+    return MissingOpportunityClosureResult(
+        executed=True,
+        closed_count=len(
+            closed_references
+        ),
+        closed_references=(
+            closed_references
+        ),
+        current_discovered_count=(
+            current_discovered_count
+        ),
+        previous_discovered_count=(
+            previous_discovered_count
+        ),
+        minimum_allowed_count=(
+            safety_decision.minimum_allowed_count
+        ),
+        skipped_reason=None,
     )
