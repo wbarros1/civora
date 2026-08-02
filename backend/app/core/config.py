@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     supabase_secret_key: SecretStr | None = None
 
     openai_api_key: SecretStr | None = None
+    openai_extraction_model: str = (
+        "gpt-5-mini"
+    )
     openai_model: str = "gpt-5-mini"
 
     user_agent: str = "PublicInhuurPlatform/0.1"
