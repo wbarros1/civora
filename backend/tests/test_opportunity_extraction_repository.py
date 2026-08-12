@@ -18,6 +18,9 @@ def test_idempotency_key_is_stable() -> None:
                 "flextender-extraction-v3"
             ),
             requested_model="gpt-5-mini",
+            postprocessing_version=(
+                "opportunity-postprocessing-v1"
+            ),
         )
     )
 
@@ -29,6 +32,9 @@ def test_idempotency_key_is_stable() -> None:
                 "flextender-extraction-v3"
             ),
             requested_model="gpt-5-mini",
+            postprocessing_version=(
+                "opportunity-postprocessing-v1"
+            ),
         )
     )
 
@@ -58,6 +64,10 @@ def test_idempotency_key_is_stable() -> None:
             "raw_opportunity_id",
             "raw-456",
         ),
+        (
+            "postprocessing_version",
+            "opportunity-postprocessing-v2",
+        ),
     ],
 )
 def test_idempotency_key_changes(
@@ -79,6 +89,9 @@ def test_idempotency_key_changes(
         "requested_model": (
             "gpt-5-mini"
         ),
+        "postprocessing_version": (
+            "opportunity-postprocessing-v1"
+        ),
     }
 
     original_key = (
@@ -99,18 +112,38 @@ def test_idempotency_key_changes(
 
     assert changed_key != original_key
 
-
-def test_idempotency_key_rejects_empty_values() -> None:
+@pytest.mark.parametrize(
+    "empty_field",
+    [
+        "raw_opportunity_id",
+        "input_hash",
+        "prompt_version",
+        "requested_model",
+        "postprocessing_version",
+    ],
+)
+def test_idempotency_key_rejects_empty_values(
+    empty_field: str,
+) -> None:
     """Lege onderdelen zijn niet toegestaan."""
+
+    arguments = {
+        "raw_opportunity_id": "raw-123",
+        "input_hash": "content-hash",
+        "prompt_version": (
+            "flextender-extraction-v3"
+        ),
+        "requested_model": "gpt-5-mini",
+        "postprocessing_version": (
+            "opportunity-postprocessing-v1"
+        ),
+    }
+
+    arguments[empty_field] = ""
 
     with pytest.raises(
         ValueError
     ):
         build_extraction_idempotency_key(
-            raw_opportunity_id="raw-123",
-            input_hash="",
-            prompt_version=(
-                "flextender-extraction-v3"
-            ),
-            requested_model="gpt-5-mini",
+            **arguments
         )

@@ -9,6 +9,11 @@ from backend.app.schemas.opportunity_extraction import (
     OpportunityExtractionEnvelope,
 )
 
+POSTPROCESSING_VERSION = (
+    "opportunity-postprocessing-v4"
+)
+
+REVIEW_ENFORCEMENT_ENABLED = False
 
 AMSTERDAM_TIMEZONE = ZoneInfo(
     "Europe/Amsterdam"
@@ -133,6 +138,7 @@ NON_ACTIONABLE_REVIEW_TERMS = (
 )
 
 NON_ACTIONABLE_REVIEW_PATTERNS = (
+
     re.compile(
         r"startdatum.*z\.?\s*s\.?\s*m\.?",
         re.IGNORECASE,
@@ -145,6 +151,21 @@ NON_ACTIONABLE_REVIEW_PATTERNS = (
         r"employment[_ ]relationship.*"
         r"niet\s+expliciet.*"
         r"(genoemd|vermeld)",
+        re.IGNORECASE,
+    ),
+
+    re.compile(
+        r"work[_ ]arrangement.*"
+        r"niet\s+expliciet.*"
+        r"(genoemd|vermeld)",
+        re.IGNORECASE,
+    ),
+
+    re.compile(
+        r"\blocation\b.*"
+        r"\bniet\s+ingevuld\b.*"
+        r"\b(?:provincie|regio)\b.*"
+        r"\bgeen\s+concrete\b",
         re.IGNORECASE,
     ),
 )
@@ -860,8 +881,10 @@ def post_process_extraction(
         application_status=(
             application_status
         ),
-        review_required=bool(
-            combined_review_reasons
+        review_required=(
+            bool(combined_review_reasons)
+            if REVIEW_ENFORCEMENT_ENABLED
+            else False
         ),
         corrections=tuple(
             corrections

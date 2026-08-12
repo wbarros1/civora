@@ -84,19 +84,21 @@ def _first_row(
 
     return first_row
 
-
 def build_extraction_idempotency_key(
     *,
     raw_opportunity_id: str,
     input_hash: str,
     prompt_version: str,
     requested_model: str,
+    postprocessing_version: str,
 ) -> str:
     """
-    Maak een stabiele sleutel voor één inhoud/model/prompt-combinatie.
+    Maak een stabiele sleutel voor één
+    inhoud/model/prompt/postprocessing-combinatie.
 
-    Een nieuwe inhoudshash, promptversie of modelnaam levert bewust
-    een nieuwe sleutel op.
+    Een nieuwe inhoudshash, promptversie, modelnaam
+    of postprocessingversie levert bewust een nieuwe
+    sleutel op.
     """
 
     components = (
@@ -104,6 +106,7 @@ def build_extraction_idempotency_key(
         input_hash.strip(),
         prompt_version.strip(),
         requested_model.strip(),
+        postprocessing_version.strip(),
     )
 
     if any(
@@ -125,7 +128,6 @@ def build_extraction_idempotency_key(
         )
     ).hexdigest()
 
-
 def reserve_extraction_run(
     *,
     raw_opportunity_id: str,
@@ -135,6 +137,7 @@ def reserve_extraction_run(
     input_character_count: int,
     prompt_version: str,
     requested_model: str,
+    postprocessing_version: str,
     request_metadata: dict[str, Any],
 ) -> ExtractionRunReservation:
     """
@@ -158,6 +161,9 @@ def reserve_extraction_run(
             ),
             requested_model=(
                 requested_model
+            ),
+            postprocessing_version=(
+                postprocessing_version
             ),
         )
     )
@@ -233,6 +239,9 @@ def reserve_extraction_run(
             "prompt_version": (
                 prompt_version
             ),
+            "postprocessing_version": (
+                postprocessing_version
+            ),
             "input_hash": input_hash,
             "input_character_count": (
                 input_character_count
@@ -303,6 +312,9 @@ def reserve_extraction_run(
         "provider": "openai",
         "model_name": requested_model,
         "prompt_version": prompt_version,
+        "postprocessing_version": (
+            postprocessing_version
+        ),
         "input_hash": input_hash,
         "input_character_count": (
             input_character_count

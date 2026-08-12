@@ -15,6 +15,7 @@ from backend.app.services.opportunity_text import (
 )
 
 from backend.app.services.opportunity_postprocessing import (
+    POSTPROCESSING_VERSION,
     post_process_extraction,
 )
 
@@ -227,6 +228,10 @@ def main() -> None:
         requested_model=(
             requested_model
         ),
+
+        postprocessing_version=(
+            POSTPROCESSING_VERSION
+        ),
         request_metadata={
             "requested_model": (
                 requested_model
@@ -270,9 +275,9 @@ def main() -> None:
             f"{reservation.structured_opportunity_id}"
         )
         print(
-            "Reden:            "
-            "dezelfde content, promptversie en "
-            "modelcombinatie is al verwerkt."
+            "Reden:            dezelfde content, "
+            "promptversie, model- en "
+            "postprocessingcombinatie is al verwerkt."
         )
 
         return
@@ -394,6 +399,9 @@ def main() -> None:
         ),
         "prompt_version": (
             result.prompt_version
+        ),
+        "postprocessing_version": (
+            POSTPROCESSING_VERSION
         ),
         "usage": {
             "input_tokens": (

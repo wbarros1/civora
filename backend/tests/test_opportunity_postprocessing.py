@@ -111,7 +111,7 @@ def test_normalizes_title_and_removes_unsupported_phone() -> None:
 
 
 def test_preserves_actionable_review_reason() -> None:
-    """Een inhoudelijke tegenstrijdigheid blijft review vereisen."""
+    """Een inhoudelijke reviewreden blijft bewaard maar blokkeert tijdelijk niet."""
 
     extraction = OpportunityExtractionEnvelope(
         opportunity=ExtractedOpportunity(
@@ -160,13 +160,13 @@ def test_preserves_actionable_review_reason() -> None:
         ),
     )
 
-    assert result.review_required is True
+    assert result.review_required is False
 
     assert result.extraction.review_reasons == [
         (
             "De contractvorm is in de bron "
             "tegenstrijdig beschreven."
-        )
+        ),
     ]
 
 def test_filters_explanatory_review_reasons() -> None:
@@ -970,3 +970,127 @@ def test_removes_unsupported_on_site_and_region_location() -> None:
     )
 
     assert result.review_required is False
+
+def test_filters_missing_work_arrangement_explanation() -> None:
+    """Ontbrekende expliciete werkvorm bij unknown vereist geen review."""
+
+    extraction = OpportunityExtractionEnvelope(
+        opportunity=ExtractedOpportunity(
+            title="Business Analist DSO-LV",
+            client_name="Kadaster",
+            province="Gelderland",
+            work_arrangement="unknown",
+            hours_per_week_min=32,
+            hours_per_week_max=36,
+            rate_min=None,
+            rate_max=118,
+            rate_currency="EUR",
+            rate_period="hour",
+            employment_relationship="secondment",
+            application_deadline=datetime(
+                2026,
+                8,
+                24,
+                8,
+                0,
+                tzinfo=ZoneInfo(
+                    "Europe/Amsterdam"
+                ),
+            ),
+        ),
+        overall_confidence=0.78,
+        review_reasons=[
+            (
+                "Work_arrangement niet expliciet "
+                "vermeld in bron"
+            ),
+        ],
+    )
+
+    result = post_process_extraction(
+        extraction=extraction,
+        prepared_text="""
+        Business Analist DSO-LV
+        Kadaster
+
+        Regio
+        Gelderland
+
+        Dit is een detacheringsopdracht
+        met een driepartijenovereenkomst.
+
+        Uren per week
+        32-36
+
+        Een maximum uurtarief van € 118,00.
+        """,
+        title_hint="Business Analist DSO-LV",
+        source_status="active",
+    )
+
+    assert (
+        result.extraction.opportunity
+        .work_arrangement
+        == "unknown"
+    )
+
+    assert result.review_required is False
+    assert result.extraction.review_reasons == []
+
+def test_filters_missing_location_when_only_region_is_known() -> None:
+    """Alleen een provincie/regio zonder concrete plaats vereist geen review."""
+
+    extraction = OpportunityExtractionEnvelope(
+        opportunity=ExtractedOpportunity(
+            title="Business Analist DSO-LV",
+            client_name="Kadaster",
+            location=None,
+            province="Gelderland",
+            work_arrangement="unknown",
+            hours_per_week_min=32,
+            hours_per_week_max=36,
+            rate_min=None,
+            rate_max=118,
+            rate_currency="EUR",
+            rate_period="hour",
+            employment_relationship="secondment",
+            application_deadline=datetime(
+                2026,
+                8,
+                24,
+                8,
+                0,
+                tzinfo=ZoneInfo(
+                    "Europe/Amsterdam"
+                ),
+            ),
+        ),
+        overall_confidence=0.9,
+        review_reasons=[
+            (
+                "Location niet ingevuld: alleen "
+                "provincie (Gelderland) genoemd, "
+                "geen concrete plaats/standplaats"
+            ),
+        ],
+    )
+
+    result = post_process_extraction(
+        extraction=extraction,
+        prepared_text="""
+        Business Analist DSO-LV
+        Kadaster
+
+        Regio
+        Gelderland
+
+        Dit is een detacheringsopdracht
+        met een driepartijenovereenkomst.
+        """,
+        title_hint="Business Analist DSO-LV",
+        source_status="active",
+    )
+
+    assert result.extraction.opportunity.location is None
+    assert result.review_required is False
+    assert result.extraction.review_reasons == []
