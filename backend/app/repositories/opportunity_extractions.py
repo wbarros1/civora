@@ -128,6 +128,98 @@ def build_extraction_idempotency_key(
         )
     ).hexdigest()
 
+def list_opportunities_for_extraction(
+    *,
+    source_code: str,
+    limit: int,
+) -> list[str]:
+    """Selecteer actieve opdrachten die nog verwerkt moeten worden."""
+
+    if limit < 1:
+        raise ValueError(
+            "limit moet minimaal 1 zijn."
+        )
+
+    client = get_supabase_client()
+
+    source_response = (
+        client.table("sources")
+        .select("id")
+        .eq(
+            "code",
+            source_code,
+        )
+        .limit(1)
+        .execute()
+    )
+
+    source_rows = (
+        source_response.data or []
+    )
+
+    if not source_rows:
+        raise RuntimeError(
+            "Bron niet gevonden: "
+            f"{source_code}."
+        )
+
+    source_id = (
+        source_rows[0]["id"]
+    )
+
+    response = (
+        client.table(
+            "raw_opportunities"
+        )
+        .select(
+            "source_reference"
+        )
+        .eq(
+            "source_id",
+            source_id,
+        )
+        .eq(
+            "source_status",
+            "active",
+        )
+        .eq(
+            "processing_status",
+            "pending",
+        )
+        .order(
+            "updated_at",
+            desc=True,
+        )
+        .limit(
+            limit
+        )
+        .execute()
+    )
+
+    references: list[str] = []
+
+    for row in (
+        response.data or []
+    ):
+        if not isinstance(
+            row,
+            dict,
+        ):
+            continue
+
+        reference = row.get(
+            "source_reference"
+        )
+
+        if reference is None:
+            continue
+
+        references.append(
+            str(reference)
+        )
+
+    return references
+
 def reserve_extraction_run(
     *,
     raw_opportunity_id: str,
