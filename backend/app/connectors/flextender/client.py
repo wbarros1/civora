@@ -41,6 +41,7 @@ class FlextenderHttpClient:
             ),
             follow_redirects=True,
             transport=transport,
+            trust_env=False,
         )
 
         self._robots_by_origin: dict[
@@ -102,15 +103,62 @@ class FlextenderHttpClient:
 
         robots_url = f"{origin}/robots.txt"
 
-        try:
-            response = self._client.get(
-                robots_url
-            )
-        except httpx.HTTPError as exc:
+        response: httpx.Response | None = None
+        last_error: httpx.TransportError | None = None
+
+        max_attempts = 3
+
+        for attempt in range(
+            1,
+            max_attempts + 1,
+        ):
+            try:
+                response = self._client.get(
+                    robots_url,
+                    timeout=httpx.Timeout(
+                        30.0,
+                        connect=30.0,
+                    ),
+                )
+
+                response.raise_for_status()
+
+                break
+
+            except httpx.HTTPStatusError as exc:
+                # Een echte HTTP-fout zoals 403/500 behandelen
+                # we niet als tijdelijk netwerkprobleem.
+                raise RuntimeError(
+                    "robots.txt gaf een ongeldige "
+                    f"HTTP-status: {robots_url} "
+                    f"({exc.response.status_code})"
+                ) from exc
+
+            except httpx.TransportError as exc:
+                last_error = exc
+
+                if attempt >= max_attempts:
+                    break
+
+                time.sleep(
+                    float(attempt)
+                )
+
+        if response is None:
             raise RuntimeError(
-                "robots.txt kon niet worden opgehaald: "
-                f"{robots_url}"
-            ) from exc
+                "robots.txt kon na "
+                f"{max_attempts} pogingen niet "
+                f"worden opgehaald: {robots_url}"
+            ) from last_error
+        # try:
+        #     response = self._client.get(
+        #         robots_url
+        #     )
+        # except httpx.HTTPError as exc:
+        #     raise RuntimeError(
+        #         "robots.txt kon niet worden opgehaald: "
+        #         f"{robots_url}"
+        #     ) from exc
 
         if response.status_code == 404:
             self._robots_by_origin[
