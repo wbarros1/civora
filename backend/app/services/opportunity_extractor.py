@@ -13,7 +13,7 @@ from backend.app.schemas.opportunity_extraction import (
 
 
 PROMPT_VERSION = (
-    "flextender-extraction-v4"
+    "flextender-extraction-v7"
 )
 
 
@@ -97,6 +97,60 @@ Confidence en review:
 40. Voeg voor start_date alleen een reviewreden toe wanneer meerdere
     verschillende concrete startdatums worden genoemd of wanneer geen
     concrete startdatum kan worden vastgesteld.
+
+41. Wanneer geen tariefbedrag in de bron staat, moeten rate_min en
+    rate_max null zijn en rate_period='unknown'.
+
+42. Het enkele voorkomen van het woord ZZP betekent niet dat ZZP
+    is toegestaan. Beoordeel de daadwerkelijke contractvoorwaarden.
+
+43. Wanneer zowel zelfstandig/ZZP als detachering expliciet als
+    toegestane contractvorm worden beschreven, gebruik
+    employment_relationship='both'.
+
+44. Wanneer de start alleen als 'Z.s.m.' of 'zo spoedig mogelijk'
+    staat vermeld, gebruik start_date=null. Dit is geen reviewreden.
+
+45. Een concrete werkplek, standplaats of genoemd gemeentehuis mag
+    als location worden gebruikt. Dit is geen reviewreden wanneer
+    de plaatsnaam expliciet in de tekst staat.
+
+46. Leid employment_relationship niet af uit alleen de manier waarop
+    werkzaamheden worden uitgevoerd. Zelfstandig werken, geen
+    hiërarchische aansturing, vrijheid in planning of vrijheid in
+    werkvorm betekenen niet automatisch dat ZZP is toegestaan.
+
+47. Leid detachering niet uitsluitend af uit termen zoals leverancier,
+    inlenersbeloning, functieschaal, VOG of het beschikbaar stellen
+    van apparatuur.
+
+48. Gebruik employment_relationship='both' alleen wanneer de bron
+    zowel ZZP/zelfstandige inzet als detachering expliciet als
+    toegestane contractvorm ondersteunt.
+
+49. Wanneer geen toegestane contractvorm expliciet uit de bron kan
+    worden vastgesteld, gebruik employment_relationship='unknown'.
+
+50. Het ontbreken van publication_date is geen reviewreden.
+
+51. Een algemene bepaling over wat gebeurt indien meer dan één
+    kandidaat wordt gevraagd, betekent niet dat deze specifieke
+    opdracht meerdere posities heeft. Vul number_of_positions alleen
+    in wanneer het aantal voor deze opdracht expliciet wordt genoemd.
+
+52. Gebruik work_arrangement='on_site' alleen wanneer de bron
+    expliciet aangeeft dat de werkzaamheden fysiek/op locatie
+    moeten worden uitgevoerd. Leid on_site niet af uit detachering,
+    een genoemde regio, een standplaats of het ontbreken van
+    informatie over thuiswerken.
+
+53. Wanneer de bron geen concrete informatie geeft over de
+    toegestane werkvorm, gebruik work_arrangement='unknown'.
+
+54. Een provincie of regio is geen location. Gebruik een provincie
+    uitsluitend voor province. Vul location alleen wanneer een
+    concrete plaats, standplaats, kantoorlocatie of andere
+    werklocatie expliciet uit de bron blijkt.
 """.strip()
 
 

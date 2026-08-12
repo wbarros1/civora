@@ -81,8 +81,100 @@ NON_ACTIONABLE_REVIEW_TERMS = (
     "number of positions ontbreekt",
     "aantal posities ontbreekt",
     "aantal kandidaten ontbreekt",
+
+    # Een niet-concrete maar correct onvertaalde startdatum.
+    "startdatum is alleen vermeld als 'z.s.m.'",
+    'startdatum is alleen vermeld als "z.s.m."',
+    "startdatum is alleen vermeld als z.s.m.",
+    "startdatum alleen vermeld als 'z.s.m.'",
+
+    # Locatie die expliciet uit een werk-/kantoorlocatie volgt.
+    "locatie is afgeleid uit vermelding gemeentehuis",
+    "locatie afgeleid uit vermelding gemeentehuis",
+
+    # Ontbrekende optionele tariefinformatie.
+    "specifieke tariefinformatie ontbreekt",
+    "tariefinformatie ontbreekt",
+    "geen tariefinformatie",
+
+    # Uitleg van correct afgeleide contractvorm.
+    "employment_relationship afgeleid uit",
+    "employment relationship afgeleid uit",
+    "afgeleid uit contractinformatie",
+    "broker/contractmodellen",
+
+    # Contractvorm die deterministisch wordt gevalideerd/gecorrigeerd.
+    "employment_relationship op 'both' gekozen",
+    'employment_relationship op "both" gekozen',
+    "employment relationship op 'both' gekozen",
+    'employment relationship op "both" gekozen',
+    "zelfstandige inzet lijkt toegestaan",
+    "voorwaarden rond inleen en vog",
+
+    # Publication date is optioneel.
+    "publication_date niet expliciet vermeld",
+    "publication date niet expliciet vermeld",
+    "publicatiedatum niet expliciet vermeld",
+    "publicatiedatum ontbreekt",
+
+        # Unknown contractvorm is correct wanneer de bron
+    # geen expliciete toegestane contractvorm noemt.
+    "employment_relationship niet expliciet genoemd",
+    "employment relationship niet expliciet genoemd",
+    "contractvorm niet expliciet genoemd",
+
+    # Meerdere expliciete werklocaties kunnen in één
+    # location-veld gecombineerd worden.
+    "location gecombineerd uit meerdere teksten",
+    "locatie gecombineerd uit meerdere teksten",
+    "exact standplaats niet eenduidig als enkelvoudig veld",
+
+
 )
 
+NON_ACTIONABLE_REVIEW_PATTERNS = (
+    re.compile(
+        r"startdatum.*z\.?\s*s\.?\s*m\.?",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(geen|ontbrekende?).*tarief",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"employment[_ ]relationship.*"
+        r"niet\s+expliciet.*"
+        r"(genoemd|vermeld)",
+        re.IGNORECASE,
+    ),
+)
+
+ZZP_ALLOWED_PATTERNS = (
+    re.compile(
+        r"\bmodel\s*4\b.{0,160}\bzzp",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"\bin\s+geval\s+u\s+een\s+zzp",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bzzp['’]?er\s+bent\b",
+        re.IGNORECASE,
+    ),
+)
+
+
+SECONDMENT_ALLOWED_PATTERNS = (
+    re.compile(
+        r"\bmodel\s*6\b.{0,200}\bdetach",
+        re.IGNORECASE | re.DOTALL,
+    ),
+    re.compile(
+        r"\btijdelijke\s+medewerker\s+detacheert\b",
+        re.IGNORECASE,
+    ),
+)
 
 @dataclass(
     frozen=True,
@@ -250,17 +342,175 @@ def _mentions_maximum_rate(
 def _is_non_actionable_review_reason(
     reason: str,
 ) -> bool:
-    """Herken meldingen over ontbrekende optionele velden."""
+    """Herken niet-actionabele reviewredenen."""
 
     normalized_reason = (
         reason.casefold()
     )
 
-    return any(
+    is_non_actionable_term = any(
         term in normalized_reason
         for term in NON_ACTIONABLE_REVIEW_TERMS
     )
 
+    is_non_actionable_pattern = any(
+        pattern.search(reason)
+        is not None
+        for pattern
+        in NON_ACTIONABLE_REVIEW_PATTERNS
+    )
+
+    return (
+        is_non_actionable_term
+        or is_non_actionable_pattern
+    )
+
+
+
+def _relationship_options_from_text(
+    prepared_text: str,
+) -> tuple[
+    bool,
+    bool,
+]:
+    """
+    Detecteer expliciet toegestane ZZP- en
+    detacheringsconstructies.
+    """
+
+    zzp_allowed = any(
+        pattern.search(
+            prepared_text
+        )
+        is not None
+        for pattern in ZZP_ALLOWED_PATTERNS
+    )
+
+    secondment_allowed = any(
+        pattern.search(
+            prepared_text
+        )
+        is not None
+        for pattern
+        in SECONDMENT_ALLOWED_PATTERNS
+    )
+
+    return (
+        zzp_allowed,
+        secondment_allowed,
+    )
+
+def _extract_hours_per_week(
+    prepared_text: str,
+) -> tuple[float, float] | None:
+    """
+    Lees het gestructureerde Flextender-veld
+    'Uren per week' uit de voorbereide tekst.
+    """
+
+    range_match = re.search(
+        (
+            r"(?im)"
+            r"^[ \t]*uren[ \t]+per[ \t]+week[ \t]*\r?\n"
+            r"[ \t]*(?:gemiddeld[ \t]+)?"
+            r"(\d+(?:[.,]\d+)?)"
+            r"[ \t]*(?:tot|t/m|[-–—])[ \t]*"
+            r"(\d+(?:[.,]\d+)?)"
+            r"[ \t]*$"
+        ),
+        prepared_text,
+    )
+
+    if range_match is not None:
+        minimum = float(
+            range_match.group(1).replace(
+                ",",
+                ".",
+            )
+        )
+
+        maximum = float(
+            range_match.group(2).replace(
+                ",",
+                ".",
+            )
+        )
+
+        return (
+            minimum,
+            maximum,
+        )
+
+    single_match = re.search(
+        (
+            r"(?im)"
+            r"^[ \t]*uren[ \t]+per[ \t]+week[ \t]*\r?\n"
+            r"[ \t]*(?:gemiddeld[ \t]+)?"
+            r"(\d+(?:[.,]\d+)?)"
+            r"[ \t]*$"
+        ),
+        prepared_text,
+    )
+
+    if single_match is not None:
+        hours = float(
+            single_match.group(1).replace(
+                ",",
+                ".",
+            )
+        )
+
+        return (
+            hours,
+            hours,
+        )
+
+    return None
+
+
+def _has_explicit_on_site_evidence(
+    prepared_text: str,
+) -> bool:
+    """
+    Controleer of de bron expliciet aangeeft
+    dat de werkzaamheden op locatie moeten
+    worden uitgevoerd.
+    """
+
+    patterns = (
+        re.compile(
+            r"\bvolledig\s+op\s+locatie\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\buitsluitend\s+op\s+locatie\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bwerkzaamheden\s+worden\s+"
+            r"(?:volledig|uitsluitend)\s+"
+            r"op\s+locatie\s+uitgevoerd\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bthuiswerken\s+(?:is\s+)?"
+            r"(?:niet\s+mogelijk|niet\s+toegestaan)\b",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bgeen\s+mogelijkheid\s+"
+            r"(?:tot|voor)\s+thuiswerken\b",
+            re.IGNORECASE,
+        ),
+    )
+
+    return any(
+        pattern.search(
+            prepared_text
+        )
+        is not None
+        for pattern in patterns
+    )
 
 def post_process_extraction(
     *,
@@ -292,6 +542,37 @@ def post_process_extraction(
         else ""
     )
 
+    source_hours = _extract_hours_per_week(
+        prepared_text
+    )
+
+    if source_hours is not None:
+        (
+            source_hours_min,
+            source_hours_max,
+        ) = source_hours
+
+        if (
+            opportunity.hours_per_week_min
+            != source_hours_min
+            or opportunity.hours_per_week_max
+            != source_hours_max
+        ):
+            opportunity_updates[
+                "hours_per_week_min"
+            ] = source_hours_min
+
+            opportunity_updates[
+                "hours_per_week_max"
+            ] = source_hours_max
+
+            corrections.append(
+                "Uren per week gecorrigeerd naar "
+                f"{source_hours_min:g} - "
+                f"{source_hours_max:g} op basis "
+                "van het gestructureerde bronveld."
+            )
+
     if (
         cleaned_title_hint
         and opportunity.title
@@ -320,6 +601,41 @@ def post_process_extraction(
     )
 
     if (
+        opportunity.work_arrangement
+        == "on_site"
+        and not _has_explicit_on_site_evidence(
+            prepared_text
+        )
+    ):
+        opportunity_updates[
+            "work_arrangement"
+        ] = "unknown"
+
+        corrections.append(
+            "Werkvorm gecorrigeerd van on_site "
+            "naar unknown omdat de bron geen "
+            "expliciete verplichte fysieke "
+            "werkvorm vermeldt."
+        )
+
+    if (
+        opportunity.location
+        and opportunity.province
+        and opportunity.location.strip().casefold()
+        == opportunity.province.strip().casefold()
+    ):
+        opportunity_updates[
+            "location"
+        ] = None
+
+        corrections.append(
+            "Locatie verwijderd omdat deze gelijk "
+            "was aan de provincie/regio en geen "
+            "concrete plaats of werklocatie "
+            "vertegenwoordigde."
+        )
+
+    if (
         opportunity.rate_min is not None
         and opportunity.rate_max is not None
         and opportunity.rate_min
@@ -336,6 +652,71 @@ def post_process_extraction(
             "Minimumtarief verwijderd omdat "
             "de bron uitsluitend een "
             "maximumtarief vermeldt."
+        )
+
+    if (
+        opportunity.rate_min is None
+        and opportunity.rate_max is None
+        and opportunity.rate_period
+        != "unknown"
+    ):
+        opportunity_updates[
+            "rate_period"
+        ] = "unknown"
+
+        corrections.append(
+            "Tariefperiode teruggezet naar unknown "
+            "omdat geen minimum- of maximumtarief "
+            "in de bron is vastgesteld."
+        )
+
+    (
+        zzp_allowed,
+        secondment_allowed,
+    ) = _relationship_options_from_text(
+        prepared_text
+    )
+
+    if (
+        zzp_allowed
+        and secondment_allowed
+    ):
+        if (
+            opportunity.employment_relationship
+            != "both"
+        ):
+            opportunity_updates[
+                "employment_relationship"
+            ] = "both"
+
+            corrections.append(
+                "Contractvorm gecorrigeerd naar both "
+                "omdat de bron zowel ZZP als "
+                "detachering expliciet toestaat."
+            )
+
+    elif (
+        opportunity.employment_relationship
+        == "both"
+    ):
+        if zzp_allowed:
+            corrected_relationship = "zzp"
+
+        elif secondment_allowed:
+            corrected_relationship = "secondment"
+
+        else:
+            corrected_relationship = "unknown"
+
+        opportunity_updates[
+            "employment_relationship"
+        ] = corrected_relationship
+
+        corrections.append(
+            "Contractvorm gecorrigeerd van both naar "
+            f"{corrected_relationship} omdat niet beide "
+            "contractvormen expliciet door de bron "
+            "worden ondersteund."
         )
 
     if (
