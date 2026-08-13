@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <meta
+      name="description"
+      content="Civora - publieke inhuuropdrachten slim gevonden."
+    />
+
+    <title>Civora | Publieke inhuuropdrachten</title>
+    <link rel="icon" type="image/png" href="/static/assets/civora-mark.png" />
+
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a href="/" class="brand" aria-label="Civora home">
+          <img
+            src="/static/assets/civora-logo.png"
+            alt="Civora by Destino AI"
+            class="brand-logo"
+          />
+        </a>
+
+        <div class="topbar-actions">
+          <span class="status-pill">
+            <span class="status-dot"></span>
+            Live opdrachten
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-glow"></div>
+        <img
+          src="/static/assets/civora-mark.png"
+          alt=""
+          class="hero-brand-mark"
+          aria-hidden="true"
+        />
+
+        <div class="container hero-content">
+          <span class="eyebrow"> PUBLIEKE INHUUR · SLIM GEVONDEN </span>
+
+          <h1>
+            Vind de publieke opdracht
+            <span>die bij je past.</span>
+          </h1>
+
+          <p class="hero-description">
+            Doorzoek actuele inhuuropdrachten van publieke organisaties vanuit
+            één helder overzicht.
+          </p>
+
+          <div class="hero-features">
+            <span>Actuele opdrachten</span>
+            <span>AI-gestructureerd</span>
+            <span>Direct doorzoekbaar</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-section">
+        <div class="container">
+          <form id="filter-form" class="filter-panel">
+            <div class="filter-search">
+              <label for="search"> Zoek opdracht </label>
+
+              <div class="search-control">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
+                  />
+                </svg>
+
+                <input
+                  id="search"
+                  name="search"
+                  type="search"
+                  placeholder="Bijv. projectleider, data engineer..."
+                  autocomplete="off"
+                />
+              </div>
+            </div>
+
+            <div class="filter-grid">
+              <div class="field">
+                <label for="client"> Opdrachtgever </label>
+
+                <input
+                  id="client"
+                  name="client"
+                  type="text"
+                  placeholder="Bijv. Kadaster"
+                />
+              </div>
+
+              <div class="field">
+                <label for="province"> Provincie </label>
+
+                <select id="province" name="province">
+                  <option value="">Alle provincies</option>
+                  <option>Drenthe</option>
+                  <option>Flevoland</option>
+                  <option>Friesland</option>
+                  <option>Gelderland</option>
+                  <option>Groningen</option>
+                  <option>Limburg</option>
+                  <option>Noord-Brabant</option>
+                  <option>Noord-Holland</option>
+                  <option>Overijssel</option>
+                  <option>Utrecht</option>
+                  <option>Zeeland</option>
+                  <option>Zuid-Holland</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="work-arrangement"> Werkvorm </label>
+
+                <select id="work-arrangement" name="work_arrangement">
+                  <option value="">Alle werkvormen</option>
+
+                  <option value="hybrid">Hybride</option>
+
+                  <option value="on_site">Op locatie</option>
+
+                  <option value="remote">Remote</option>
+
+                  <option value="unknown">Niet vermeld</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="relationship"> Contractvorm </label>
+
+                <select id="relationship" name="employment_relationship">
+                  <option value="">Alle contractvormen</option>
+
+                  <option value="zzp">ZZP</option>
+
+                  <option value="secondment">Detachering</option>
+
+                  <option value="both">ZZP / detachering</option>
+
+                  <option value="unknown">Niet vermeld</option>
+                </select>
+              </div>
+            </div>
+
+            <input type="hidden" name="application_status" value="open" />
+
+            <div class="filter-actions">
+              <button
+                type="button"
+                id="reset-filters"
+                class="button button-secondary"
+              >
+                Wis filters
+              </button>
+
+              <button type="submit" class="button button-primary">
+                Zoek opdrachten
+
+                <span aria-hidden="true"> → </span>
+              </button>
+            </div>
+          </form>
+
+          <div class="results-header">
+            <div>
+              <span class="section-label"> OPENSTAANDE OPDRACHTEN </span>
+
+              <h2 id="results-title">Opdrachten</h2>
+            </div>
+
+            <div id="results-meta" class="results-meta">Laden...</div>
+          </div>
+
+          <div id="error-message" class="message message-error hidden"></div>
+
+          <div id="loading-state" class="opportunity-grid">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+
+          <div id="opportunity-grid" class="opportunity-grid hidden"></div>
+
+          <div id="empty-state" class="empty-state hidden">
+            <div class="empty-icon">V</div>
+
+            <h3>Geen opdrachten gevonden</h3>
+
+            <p>Pas je zoekopdracht of filters aan en probeer het opnieuw.</p>
+          </div>
+
+          <div id="load-more-container" class="load-more-container hidden">
+            <button id="load-more" class="button button-secondary">
+              Meer opdrachten laden
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+
+    <aside id="detail-drawer" class="detail-drawer" aria-hidden="true">
+      <div class="drawer-header">
+        <button id="close-drawer" class="drawer-close" aria-label="Sluiten">
+          ×
+        </button>
+      </div>
+
+      <div id="drawer-content" class="drawer-content"></div>
+    </aside>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
