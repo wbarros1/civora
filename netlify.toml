@@ -1,0 +1,13 @@
+[build]
+  publish = "backend/app/frontend"
+
+[[redirects]]
+  from = "/static/*"
+  to = "/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/*"
+  to = "https://civora-5ysh.onrender.com/api/v1/:splat"
+  status = 200
