@@ -1,2 +1,2 @@
+/static/_ /:splat 200!
 /api/v1/_ https://civora-5ysh.onrender.com/api/v1/:splat 200
-/static/_ /:splat 200
