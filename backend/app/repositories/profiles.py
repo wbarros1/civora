@@ -46,3 +46,37 @@ def get_profile(
         return None
 
     return row
+
+
+def update_profile(
+    *,
+    user_id: str,
+    full_name: str,
+    vakgroep: str,
+) -> dict[str, Any] | None:
+    """Wijzig het profiel van één gebruiker."""
+
+    client = get_supabase_client()
+
+    (
+        client.table(
+            "profiles"
+        )
+        .update(
+            {
+                "full_name": (
+                    full_name.strip()
+                ),
+                "vakgroep": vakgroep,
+            }
+        )
+        .eq(
+            "id",
+            user_id,
+        )
+        .execute()
+    )
+
+    return get_profile(
+        user_id
+    )

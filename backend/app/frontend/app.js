@@ -134,6 +134,61 @@ const elements = {
         document.getElementById(
             "user-initials"
         ),
+
+    profileButton:
+    document.getElementById(
+        "profile-button"
+    ),
+
+    profileModal:
+        document.getElementById(
+            "profile-modal"
+        ),
+
+    profileBackdrop:
+        document.getElementById(
+            "profile-backdrop"
+        ),
+
+    closeProfile:
+        document.getElementById(
+            "close-profile"
+        ),
+
+    cancelProfile:
+        document.getElementById(
+            "cancel-profile"
+        ),
+
+    profileForm:
+        document.getElementById(
+            "profile-form"
+        ),
+
+    profileName:
+        document.getElementById(
+            "profile-name"
+        ),
+
+    profileEmail:
+        document.getElementById(
+            "profile-email"
+        ),
+
+    profileVakgroep:
+        document.getElementById(
+            "profile-vakgroep"
+        ),
+
+    profileRole:
+        document.getElementById(
+            "profile-role"
+        ),
+
+    profileMessage:
+        document.getElementById(
+            "profile-message"
+        ),
 };
 
 function showAuthMessage(
@@ -216,6 +271,25 @@ async function apiFetch(
     );
 }
 
+function renderCurrentUser() {
+    if (!currentUser) {
+        return;
+    }
+
+    elements.userName.textContent =
+        currentUser.full_name;
+
+    elements.userVakgroep.textContent =
+        formatVakgroep(
+            currentUser.vakgroep
+        );
+
+    elements.userInitials.textContent =
+        getInitials(
+            currentUser.full_name
+        );
+}
+
 async function loadCurrentUser() {
     const response =
         await apiFetch(
@@ -232,19 +306,185 @@ async function loadCurrentUser() {
     currentUser =
         await response.json();
 
-    elements.userName.textContent =
+    renderCurrentUser();
+}
+
+function openProfile() {
+    if (!currentUser) {
+        return;
+    }
+
+    elements.profileName.value =
         currentUser.full_name;
 
-    elements.userVakgroep.textContent =
-        formatVakgroep(
-            currentUser.vakgroep
+    elements.profileEmail.textContent =
+        currentUser.email
+        || "Niet beschikbaar";
+
+    elements.profileVakgroep.value =
+        currentUser.vakgroep;
+
+    elements.profileRole.textContent =
+        currentUser.role === "admin"
+            ? "Administrator"
+            : "Gebruiker";
+
+    elements.profileMessage
+        .classList
+        .add(
+            "hidden"
         );
 
-    elements.userInitials.textContent =
-        getInitials(
-            currentUser.full_name
+    elements.profileModal
+        .classList
+        .remove(
+            "hidden"
         );
+
+    elements.profileBackdrop
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    document.body.classList.add(
+        "drawer-open"
+    );
 }
+
+
+function closeProfile() {
+    elements.profileModal
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.profileBackdrop
+        .classList
+        .add(
+            "hidden"
+        );
+
+    document.body.classList.remove(
+        "drawer-open"
+    );
+}
+
+elements.profileForm.addEventListener(
+    "submit",
+    async (event) => {
+        event.preventDefault();
+
+        const fullName =
+            elements
+                .profileName
+                .value
+                .trim();
+
+        const vakgroep =
+            elements
+                .profileVakgroep
+                .value;
+
+        elements.profileMessage
+            .classList
+            .add(
+                "hidden"
+            );
+
+        try {
+            const response =
+                await apiFetch(
+                    "/auth/me",
+                    {
+                        method: "PATCH",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify(
+                                {
+                                    full_name:
+                                        fullName,
+
+                                    vakgroep:
+                                        vakgroep,
+                                }
+                            ),
+                    }
+                );
+
+            if (!response.ok) {
+                const errorData =
+                    await response
+                        .json()
+                        .catch(
+                            () => ({})
+                        );
+
+                throw new Error(
+                    errorData.detail
+                    || "Profiel kon niet worden opgeslagen."
+                );
+            }
+
+            currentUser =
+                await response.json();
+
+            renderCurrentUser();
+
+            elements.profileMessage
+                .textContent =
+                    "Je profiel is bijgewerkt.";
+
+            elements.profileMessage
+                .className =
+                    "auth-message success";
+
+        } catch (error) {
+            console.error(error);
+
+            elements.profileMessage
+                .textContent =
+                    error.message
+                    || (
+                        "Profiel kon niet "
+                        + "worden opgeslagen."
+                    );
+
+            elements.profileMessage
+                .className =
+                    "auth-message error";
+        }
+    }
+);
+
+elements.profileButton.addEventListener(
+    "click",
+    openProfile
+);
+
+
+elements.closeProfile.addEventListener(
+    "click",
+    closeProfile
+);
+
+
+elements.cancelProfile.addEventListener(
+    "click",
+    closeProfile
+);
+
+
+elements.profileBackdrop.addEventListener(
+    "click",
+    closeProfile
+);
 
 elements.loginForm.addEventListener(
     "submit",
@@ -1283,6 +1523,7 @@ document.addEventListener(
             event.key === "Escape"
         ) {
             closeDrawer();
+            closeProfile();
         }
     }
 );

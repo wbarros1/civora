@@ -155,15 +155,22 @@
             </span>
 
             <div class="user-menu">
-              <div class="user-avatar">
-                <span id="user-initials"> -- </span>
-              </div>
+              <button
+                id="profile-button"
+                type="button"
+                class="profile-button"
+                aria-label="Open profiel"
+              >
+                <div class="user-avatar">
+                  <span id="user-initials"> -- </span>
+                </div>
 
-              <div class="user-summary">
-                <strong id="user-name"> Gebruiker </strong>
+                <div class="user-summary">
+                  <strong id="user-name"> Gebruiker </strong>
 
-                <span id="user-vakgroep"> Vakgroep </span>
-              </div>
+                  <span id="user-vakgroep"> Vakgroep </span>
+                </div>
+              </button>
 
               <button id="logout-button" type="button" class="logout-button">
                 Uitloggen
@@ -347,6 +354,91 @@
           </div>
         </section>
       </main>
+      <div id="profile-backdrop" class="profile-backdrop hidden"></div>
+
+      <div
+        id="profile-modal"
+        class="profile-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-title"
+      >
+        <div class="profile-modal-header">
+          <div>
+            <span class="section-label"> CIVORA ACCOUNT </span>
+
+            <h2 id="profile-title">Mijn profiel</h2>
+          </div>
+
+          <button
+            id="close-profile"
+            type="button"
+            class="drawer-close"
+            aria-label="Profiel sluiten"
+          >
+            ×
+          </button>
+        </div>
+
+        <div id="profile-message" class="auth-message hidden"></div>
+
+        <form id="profile-form" class="profile-form">
+          <div class="field">
+            <label for="profile-name"> Naam </label>
+
+            <input
+              id="profile-name"
+              type="text"
+              maxlength="120"
+              autocomplete="name"
+              required
+            />
+          </div>
+
+          <div class="field">
+            <label> E-mailadres </label>
+
+            <div id="profile-email" class="readonly-field">-</div>
+          </div>
+
+          <div class="field">
+            <label for="profile-vakgroep"> Vakgroep </label>
+
+            <select id="profile-vakgroep" required>
+              <option value="procesmanagement">Procesmanagement</option>
+
+              <option value="data_ai">Data & AI</option>
+
+              <option value="ict">ICT</option>
+
+              <option value="finance">Finance</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label> Rol </label>
+
+            <div id="profile-role" class="readonly-field">Gebruiker</div>
+
+            <span class="field-help"> De rol wordt beheerd door Civora. </span>
+          </div>
+
+          <div class="profile-actions">
+            <button
+              id="cancel-profile"
+              type="button"
+              class="button button-secondary"
+            >
+              Annuleren
+            </button>
+
+            <button type="submit" class="button button-primary">
+              Wijzigingen opslaan
+              <span>→</span>
+            </button>
+          </div>
+        </form>
+      </div>
 
       <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
 
