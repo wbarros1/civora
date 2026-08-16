@@ -302,19 +302,39 @@
               <input type="hidden" name="application_status" value="open" />
 
               <div class="filter-actions">
-                <button
-                  type="button"
-                  id="reset-filters"
-                  class="button button-secondary"
-                >
-                  Wis filters
-                </button>
+                <div class="filter-actions-saved">
+                  <button
+                    type="button"
+                    id="show-saved-searches"
+                    class="button button-secondary"
+                  >
+                    Opgeslagen zoekopdrachten
+                  </button>
 
-                <button type="submit" class="button button-primary">
-                  Zoek opdrachten
+                  <button
+                    type="button"
+                    id="save-search-button"
+                    class="button button-secondary"
+                  >
+                    Zoekopdracht opslaan
+                  </button>
+                </div>
 
-                  <span aria-hidden="true"> → </span>
-                </button>
+                <div class="filter-actions-main">
+                  <button
+                    type="button"
+                    id="reset-filters"
+                    class="button button-secondary"
+                  >
+                    Wis filters
+                  </button>
+
+                  <button type="submit" class="button button-primary">
+                    Zoek opdrachten
+
+                    <span aria-hidden="true"> → </span>
+                  </button>
+                </div>
               </div>
             </form>
 
@@ -354,6 +374,10 @@
           </div>
         </section>
       </main>
+      <!-- ====================================== -->
+      <!-- Profile modal -->
+      <!-- ====================================== -->
+
       <div id="profile-backdrop" class="profile-backdrop hidden"></div>
 
       <div
@@ -439,6 +463,113 @@
           </div>
         </form>
       </div>
+
+      <!-- ====================================== -->
+      <!-- Save search modal -->
+      <!-- ====================================== -->
+
+      <div id="save-search-backdrop" class="profile-backdrop hidden"></div>
+
+      <div
+        id="save-search-modal"
+        class="profile-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-search-title"
+      >
+        <div class="profile-modal-header">
+          <div>
+            <span class="section-label"> PERSOONLIJK </span>
+
+            <h2 id="save-search-title">Zoekopdracht opslaan</h2>
+          </div>
+
+          <button
+            id="close-save-search"
+            type="button"
+            class="drawer-close"
+            aria-label="Sluiten"
+          >
+            ×
+          </button>
+        </div>
+
+        <div id="save-search-message" class="auth-message hidden"></div>
+
+        <form id="save-search-form" class="profile-form">
+          <div class="field">
+            <label for="saved-search-name"> Naam </label>
+
+            <input
+              id="saved-search-name"
+              type="text"
+              maxlength="120"
+              placeholder="Bijv. Hybride Data opdrachten"
+              required
+            />
+
+            <span class="field-help">
+              Civora bewaart de filters die nu actief zijn.
+            </span>
+          </div>
+
+          <div id="save-search-preview" class="saved-search-preview"></div>
+
+          <div class="profile-actions">
+            <button
+              id="cancel-save-search"
+              type="button"
+              class="button button-secondary"
+            >
+              Annuleren
+            </button>
+
+            <button type="submit" class="button button-primary">
+              Zoekopdracht opslaan
+              <span>→</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ====================================== -->
+      <!-- Saved searches modal -->
+      <!-- ====================================== -->
+
+      <div id="saved-searches-backdrop" class="profile-backdrop hidden"></div>
+
+      <div
+        id="saved-searches-modal"
+        class="saved-searches-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="saved-searches-title"
+      >
+        <div class="profile-modal-header">
+          <div>
+            <span class="section-label"> PERSOONLIJK </span>
+
+            <h2 id="saved-searches-title">Opgeslagen zoekopdrachten</h2>
+          </div>
+
+          <button
+            id="close-saved-searches"
+            type="button"
+            class="drawer-close"
+            aria-label="Sluiten"
+          >
+            ×
+          </button>
+        </div>
+
+        <div id="saved-searches-message" class="auth-message hidden"></div>
+
+        <div id="saved-searches-list" class="saved-searches-list"></div>
+      </div>
+
+      <!-- ====================================== -->
+      <!-- Opportunity drawer -->
+      <!-- ====================================== -->
 
       <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
 

@@ -189,6 +189,81 @@ const elements = {
         document.getElementById(
             "profile-message"
         ),
+    
+    saveSearchButton:
+    document.getElementById(
+        "save-search-button"
+    ),
+
+    showSavedSearches:
+        document.getElementById(
+            "show-saved-searches"
+        ),
+
+    saveSearchModal:
+        document.getElementById(
+            "save-search-modal"
+        ),
+
+    saveSearchBackdrop:
+        document.getElementById(
+            "save-search-backdrop"
+        ),
+
+    closeSaveSearch:
+        document.getElementById(
+            "close-save-search"
+        ),
+
+    cancelSaveSearch:
+        document.getElementById(
+            "cancel-save-search"
+        ),
+
+    saveSearchForm:
+        document.getElementById(
+            "save-search-form"
+        ),
+
+    savedSearchName:
+        document.getElementById(
+            "saved-search-name"
+        ),
+
+    saveSearchMessage:
+        document.getElementById(
+            "save-search-message"
+        ),
+
+    saveSearchPreview:
+        document.getElementById(
+            "save-search-preview"
+        ),
+
+    savedSearchesModal:
+        document.getElementById(
+            "saved-searches-modal"
+        ),
+
+    savedSearchesBackdrop:
+        document.getElementById(
+            "saved-searches-backdrop"
+        ),
+
+    closeSavedSearches:
+        document.getElementById(
+            "close-saved-searches"
+        ),
+
+    savedSearchesList:
+        document.getElementById(
+            "saved-searches-list"
+        ),
+
+    savedSearchesMessage:
+        document.getElementById(
+            "saved-searches-message"
+        ),
 };
 
 function showAuthMessage(
@@ -1040,6 +1115,592 @@ function getFilters() {
     return params;
 }
 
+function getFiltersObject() {
+    const params =
+        getFilters();
+
+    return Object.fromEntries(
+        params.entries()
+    );
+}
+
+function formatFilterValue(
+    key,
+    value
+) {
+    if (
+        key === "work_arrangement"
+    ) {
+        return formatWorkArrangement(
+            value
+        );
+    }
+
+    if (
+        key === "employment_relationship"
+    ) {
+        return formatRelationship(
+            value
+        );
+    }
+
+    if (
+        key === "application_status"
+    ) {
+        const mapping = {
+            open: "Open",
+            closed: "Gesloten",
+            unknown: "Onbekend",
+        };
+
+        return mapping[value] || value;
+    }
+
+    return value;
+}
+
+function openSaveSearchModal() {
+    const filters =
+        getFiltersObject();
+
+    elements.savedSearchName.value =
+        "";
+
+    elements.saveSearchMessage
+        .classList
+        .add(
+            "hidden"
+        );
+
+    const entries =
+        Object.entries(
+            filters
+        );
+
+    if (entries.length === 0) {
+        elements.saveSearchPreview.innerHTML = `
+            <span>
+                Geen filters geselecteerd.
+            </span>
+        `;
+    } else {
+        elements.saveSearchPreview.innerHTML =
+            entries.map(
+                ([key, value]) => `
+                    <div
+                        class="saved-search-preview-row"
+                    >
+                        <span>
+                            ${escapeHtml(
+                                formatFilterName(
+                                    key
+                                )
+                            )}
+                        </span>
+
+                        <strong>
+                            ${escapeHtml(
+                                formatFilterValue(
+                                    key,
+                                    value
+                                )
+                            )}
+                        </strong>
+                    </div>
+                `
+            ).join("");
+    }
+
+    elements.saveSearchModal
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    elements.saveSearchBackdrop
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    document.body.classList.add(
+        "drawer-open"
+    );
+
+    setTimeout(
+        () => {
+            elements
+                .savedSearchName
+                .focus();
+        },
+        0
+    );
+}
+
+
+function closeSaveSearchModal() {
+    elements.saveSearchModal
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.saveSearchBackdrop
+        .classList
+        .add(
+            "hidden"
+        );
+
+    document.body.classList.remove(
+        "drawer-open"
+    );
+}
+
+
+elements.saveSearchForm.addEventListener(
+    "submit",
+    async (event) => {
+        event.preventDefault();
+
+        const name =
+            elements
+                .savedSearchName
+                .value
+                .trim();
+
+        if (!name) {
+            return;
+        }
+
+        const filters =
+            getFiltersObject();
+
+        elements.saveSearchMessage
+            .classList
+            .add(
+                "hidden"
+            );
+
+        try {
+            const response =
+                await apiFetch(
+                    "/saved-searches",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify(
+                                {
+                                    name,
+                                    filters,
+                                }
+                            ),
+                    }
+                );
+
+            if (!response.ok) {
+                const errorData =
+                    await response
+                        .json()
+                        .catch(
+                            () => ({})
+                        );
+
+                throw new Error(
+                    errorData.detail
+                    || (
+                        "Zoekopdracht kon "
+                        + "niet worden opgeslagen."
+                    )
+                );
+            }
+
+            elements.saveSearchMessage
+                .textContent =
+                    "Zoekopdracht opgeslagen.";
+
+            elements.saveSearchMessage
+                .className =
+                    "auth-message success";
+
+            setTimeout(
+                closeSaveSearchModal,
+                700
+            );
+
+        } catch (error) {
+            console.error(error);
+
+            elements.saveSearchMessage
+                .textContent =
+                    error.message;
+
+            elements.saveSearchMessage
+                .className =
+                    "auth-message error";
+        }
+    }
+);
+
+async function loadSavedSearches() {
+    elements.savedSearchesList.innerHTML =
+        `
+            <div class="saved-search-empty">
+                Laden...
+            </div>
+        `;
+
+    const response =
+        await apiFetch(
+            "/saved-searches"
+        );
+
+    if (!response.ok) {
+        throw new Error(
+            "Opgeslagen zoekopdrachten "
+            + "konden niet worden geladen."
+        );
+    }
+
+    return response.json();
+}
+
+function createSavedSearchTags(
+    filters
+) {
+    const entries =
+        Object.entries(
+            filters || {}
+        );
+
+    if (entries.length === 0) {
+        return `
+            <span class="saved-search-tag">
+                Geen filters
+            </span>
+        `;
+    }
+
+    return entries.map(
+        ([key, value]) => `
+            <span class="saved-search-tag">
+                ${escapeHtml(
+                    formatFilterName(
+                        key
+                    )
+                )}:
+                ${escapeHtml(
+                    formatFilterValue(
+                        key,
+                        value
+                    )
+                )}
+            </span>
+        `
+    ).join("");
+}
+
+async function applySavedSearch(
+    savedSearch
+) {
+    elements.form.reset();
+
+    const filters =
+        savedSearch.filters || {};
+
+    for (
+        const [key, value]
+        of Object.entries(
+            filters
+        )
+    ) {
+        const field =
+            elements.form.elements[
+                key
+            ];
+
+        if (field) {
+            field.value =
+                value;
+        }
+    }
+
+    closeSavedSearchesModal();
+
+    await loadOpportunities();
+
+    document
+        .querySelector(
+            ".content-section"
+        )
+        ?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+}
+
+async function removeSavedSearch(
+    savedSearchId
+) {
+    const response =
+        await apiFetch(
+            `/saved-searches/${savedSearchId}`,
+            {
+                method: "DELETE",
+            }
+        );
+
+    if (!response.ok) {
+        throw new Error(
+            "Zoekopdracht kon "
+            + "niet worden verwijderd."
+        );
+    }
+}
+
+async function openSavedSearchesModal() {
+    elements.savedSearchesModal
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    elements.savedSearchesBackdrop
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    document.body.classList.add(
+        "drawer-open"
+    );
+
+    elements.savedSearchesMessage
+        .classList
+        .add(
+            "hidden"
+        );
+
+    try {
+        const savedSearches =
+            await loadSavedSearches();
+
+        if (
+            savedSearches.length === 0
+        ) {
+            elements.savedSearchesList
+                .innerHTML = `
+                    <div class="saved-search-empty">
+                        Je hebt nog geen
+                        zoekopdrachten opgeslagen.
+                    </div>
+                `;
+
+            return;
+        }
+
+        elements.savedSearchesList
+            .innerHTML = "";
+
+        for (
+            const savedSearch
+            of savedSearches
+        ) {
+            const item =
+                document.createElement(
+                    "article"
+                );
+
+            item.className =
+                "saved-search-item";
+
+            item.innerHTML = `
+                <div class="saved-search-item-header">
+                    <div>
+                        <h3>
+                            ${escapeHtml(
+                                savedSearch.name
+                            )}
+                        </h3>
+                    </div>
+                </div>
+
+                <div class="saved-search-description">
+                    ${createSavedSearchTags(
+                        savedSearch.filters
+                    )}
+                </div>
+
+                <div class="saved-search-actions">
+
+                    <button
+                        type="button"
+                        class="
+                            button
+                            button-secondary
+                            saved-search-delete
+                        "
+                    >
+                        Verwijderen
+                    </button>
+
+                    <button
+                        type="button"
+                        class="
+                            button
+                            button-primary
+                            saved-search-apply
+                        "
+                    >
+                        Toepassen
+                        <span>→</span>
+                    </button>
+
+                </div>
+            `;
+
+            item
+                .querySelector(
+                    ".saved-search-apply"
+                )
+                .addEventListener(
+                    "click",
+                    () => {
+                        applySavedSearch(
+                            savedSearch
+                        );
+                    }
+                );
+
+            item
+                .querySelector(
+                    ".saved-search-delete"
+                )
+                .addEventListener(
+                    "click",
+                    async () => {
+                        try {
+                            await removeSavedSearch(
+                                savedSearch.id
+                            );
+
+                            await openSavedSearchesModal();
+
+                        } catch (error) {
+                            console.error(error);
+
+                            elements.savedSearchesMessage
+                                .textContent =
+                                    error.message;
+
+                            elements.savedSearchesMessage
+                                .className =
+                                    "auth-message error";
+                        }
+                    }
+                );
+
+            elements.savedSearchesList
+                .appendChild(
+                    item
+                );
+        }
+
+    } catch (error) {
+        console.error(error);
+
+        elements.savedSearchesList
+            .innerHTML = "";
+
+        elements.savedSearchesMessage
+            .textContent =
+                error.message;
+
+        elements.savedSearchesMessage
+            .className =
+                "auth-message error";
+    }
+}
+
+
+function closeSavedSearchesModal() {
+    elements.savedSearchesModal
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.savedSearchesBackdrop
+        .classList
+        .add(
+            "hidden"
+        );
+
+    document.body.classList.remove(
+        "drawer-open"
+    );
+}
+
+elements.saveSearchButton.addEventListener(
+    "click",
+    openSaveSearchModal
+);
+
+
+elements.showSavedSearches.addEventListener(
+    "click",
+    openSavedSearchesModal
+);
+
+
+elements.closeSaveSearch.addEventListener(
+    "click",
+    closeSaveSearchModal
+);
+
+
+elements.cancelSaveSearch.addEventListener(
+    "click",
+    closeSaveSearchModal
+);
+
+
+elements.saveSearchBackdrop.addEventListener(
+    "click",
+    closeSaveSearchModal
+);
+
+
+elements.closeSavedSearches.addEventListener(
+    "click",
+    closeSavedSearchesModal
+);
+
+
+elements.savedSearchesBackdrop.addEventListener(
+    "click",
+    closeSavedSearchesModal
+);
+
+function formatFilterName(key) {
+    const mapping = {
+        search: "Zoekterm",
+        client: "Opdrachtgever",
+        province: "Provincie",
+        work_arrangement: "Werkvorm",
+        employment_relationship:
+            "Contractvorm",
+        application_status:
+            "Reactiestatus",
+    };
+
+    return mapping[key] || key;
+}
 
 async function loadOpportunities({
     append = false,
@@ -1524,6 +2185,8 @@ document.addEventListener(
         ) {
             closeDrawer();
             closeProfile();
+            closeSaveSearchModal();
+            closeSavedSearchesModal();
         }
     }
 );
