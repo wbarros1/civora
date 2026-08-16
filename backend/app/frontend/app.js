@@ -1,3 +1,27 @@
+const {
+    supabaseUrl,
+    supabasePublishableKey,
+} = window.CIVORA_CONFIG;
+
+
+const supabaseClient =
+    window.supabase.createClient(
+        supabaseUrl,
+        supabasePublishableKey,
+        {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+            },
+        }
+    );
+
+
+let currentSession = null;
+let currentUser = null;
+
+
 const API_BASE = "/api/v1";
 const PAGE_SIZE = 12;
 
@@ -55,8 +79,423 @@ const elements = {
         document.getElementById(
             "drawer-content"
         ),
+    
+    authScreen:
+    document.getElementById(
+        "auth-screen"
+    ),
+
+    appShell:
+        document.getElementById(
+            "app-shell"
+        ),
+
+    loginForm:
+        document.getElementById(
+            "login-form"
+        ),
+
+    registerForm:
+        document.getElementById(
+            "register-form"
+        ),
+
+    showLogin:
+        document.getElementById(
+            "show-login"
+        ),
+
+    showRegister:
+        document.getElementById(
+            "show-register"
+        ),
+
+    authMessage:
+        document.getElementById(
+            "auth-message"
+        ),
+
+    logoutButton:
+        document.getElementById(
+            "logout-button"
+        ),
+
+    userName:
+        document.getElementById(
+            "user-name"
+        ),
+
+    userVakgroep:
+        document.getElementById(
+            "user-vakgroep"
+        ),
+
+    userInitials:
+        document.getElementById(
+            "user-initials"
+        ),
 };
 
+function showAuthMessage(
+    message,
+    type = "error"
+) {
+    elements.authMessage.textContent =
+        message;
+
+    elements.authMessage.className =
+        `auth-message ${type}`;
+}
+
+
+function clearAuthMessage() {
+    elements.authMessage.textContent =
+        "";
+
+    elements.authMessage.className =
+        "auth-message hidden";
+}
+
+
+function formatVakgroep(value) {
+    const mapping = {
+        procesmanagement:
+            "Procesmanagement",
+
+        data_ai:
+            "Data & AI",
+
+        ict:
+            "ICT",
+
+        finance:
+            "Finance",
+    };
+
+    return mapping[value] || value;
+}
+
+
+function getInitials(name) {
+    return String(name)
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(
+            part =>
+                part
+                    .charAt(0)
+                    .toUpperCase()
+        )
+        .join("");
+}
+
+
+async function apiFetch(
+    path,
+    options = {}
+) {
+    const headers =
+        new Headers(
+            options.headers || {}
+        );
+
+    if (currentSession?.access_token) {
+        headers.set(
+            "Authorization",
+            `Bearer ${currentSession.access_token}`
+        );
+    }
+
+    return fetch(
+        `${API_BASE}${path}`,
+        {
+            ...options,
+            headers,
+        }
+    );
+}
+
+async function loadCurrentUser() {
+    const response =
+        await apiFetch(
+            "/auth/me"
+        );
+
+    if (!response.ok) {
+        throw new Error(
+            "Gebruikersprofiel kon "
+            + "niet worden geladen."
+        );
+    }
+
+    currentUser =
+        await response.json();
+
+    elements.userName.textContent =
+        currentUser.full_name;
+
+    elements.userVakgroep.textContent =
+        formatVakgroep(
+            currentUser.vakgroep
+        );
+
+    elements.userInitials.textContent =
+        getInitials(
+            currentUser.full_name
+        );
+}
+
+elements.loginForm.addEventListener(
+    "submit",
+    async (event) => {
+        event.preventDefault();
+
+        clearAuthMessage();
+
+        const email =
+            document
+                .getElementById(
+                    "login-email"
+                )
+                .value
+                .trim();
+
+        const password =
+            document
+                .getElementById(
+                    "login-password"
+                )
+                .value;
+
+        const {
+            data,
+            error,
+        } = await supabaseClient
+            .auth
+            .signInWithPassword({
+                email,
+                password,
+            });
+
+        if (error) {
+            showAuthMessage(
+                "Inloggen is niet gelukt. "
+                + "Controleer je gegevens."
+            );
+
+            return;
+        }
+
+        currentSession =
+            data.session;
+
+        await showAuthenticatedApp();
+    }
+);
+
+elements.registerForm.addEventListener(
+    "submit",
+    async (event) => {
+        event.preventDefault();
+
+        clearAuthMessage();
+
+        const fullName =
+            document
+                .getElementById(
+                    "register-name"
+                )
+                .value
+                .trim();
+
+        const email =
+            document
+                .getElementById(
+                    "register-email"
+                )
+                .value
+                .trim();
+
+        const password =
+            document
+                .getElementById(
+                    "register-password"
+                )
+                .value;
+
+        const vakgroep =
+            document
+                .getElementById(
+                    "register-vakgroep"
+                )
+                .value;
+
+        const {
+            data,
+            error,
+        } = await supabaseClient
+            .auth
+            .signUp({
+                email,
+                password,
+
+                options: {
+                    data: {
+                        full_name:
+                            fullName,
+
+                        vakgroep:
+                            vakgroep,
+                    },
+                },
+            });
+
+        if (error) {
+            showAuthMessage(
+                error.message
+            );
+
+            return;
+        }
+
+        if (!data.session) {
+            showAuthMessage(
+                "Account aangemaakt. "
+                + "Controleer je e-mail "
+                + "om je account te bevestigen.",
+                "success"
+            );
+
+            return;
+        }
+
+        currentSession =
+            data.session;
+
+        await showAuthenticatedApp();
+    }
+);
+
+async function showAuthenticatedApp() {
+    try {
+        await loadCurrentUser();
+
+        elements.authScreen.classList.add(
+            "hidden"
+        );
+
+        elements.appShell.classList.remove(
+            "hidden"
+        );
+
+        await loadOpportunities();
+
+    } catch (error) {
+        console.error(
+            "Initialisatie van Civora mislukt:",
+            error
+        );
+
+        elements.appShell.classList.add(
+            "hidden"
+        );
+
+        elements.authScreen.classList.remove(
+            "hidden"
+        );
+
+        showAuthMessage(
+            "Je sessie is actief, maar je profiel "
+            + "kon niet worden geladen. "
+            + "Ververs de pagina of probeer het opnieuw."
+        );
+    }
+}
+
+elements.showLogin.addEventListener(
+    "click",
+    () => {
+        clearAuthMessage();
+
+        elements.loginForm
+            .classList
+            .remove(
+                "hidden"
+            );
+
+        elements.registerForm
+            .classList
+            .add(
+                "hidden"
+            );
+
+        elements.showLogin
+            .classList
+            .add(
+                "active"
+            );
+
+        elements.showRegister
+            .classList
+            .remove(
+                "active"
+            );
+    }
+);
+
+
+elements.showRegister.addEventListener(
+    "click",
+    () => {
+        clearAuthMessage();
+
+        elements.loginForm
+            .classList
+            .add(
+                "hidden"
+            );
+
+        elements.registerForm
+            .classList
+            .remove(
+                "hidden"
+            );
+
+        elements.showLogin
+            .classList
+            .remove(
+                "active"
+            );
+
+        elements.showRegister
+            .classList
+            .add(
+                "active"
+            );
+    }
+);
+
+
+elements.logoutButton.addEventListener(
+    "click",
+    async () => {
+        await supabaseClient
+            .auth
+            .signOut();
+
+        currentSession = null;
+        currentUser = null;
+
+        elements.appShell.classList.add(
+            "hidden"
+        );
+
+        elements.authScreen.classList.remove(
+            "hidden"
+        );
+    }
+);
 
 function escapeHtml(value) {
     if (
@@ -849,4 +1288,66 @@ document.addEventListener(
 );
 
 
-loadOpportunities();
+async function initializeAuth() {
+    const {
+        data,
+        error,
+    } = await supabaseClient
+        .auth
+        .getSession();
+
+    if (error) {
+        console.error(error);
+    }
+
+    currentSession =
+        data.session;
+
+    if (currentSession) {
+        await showAuthenticatedApp();
+
+        return;
+    }
+
+    elements.authScreen.classList.remove(
+        "hidden"
+    );
+
+    elements.appShell.classList.add(
+        "hidden"
+    );
+}
+
+
+supabaseClient
+    .auth
+    .onAuthStateChange(
+        (
+            event,
+            session
+        ) => {
+            currentSession =
+                session;
+
+            if (
+                event === "SIGNED_OUT"
+            ) {
+                currentUser = null;
+
+                elements.appShell
+                    .classList
+                    .add(
+                        "hidden"
+                    );
+
+                elements.authScreen
+                    .classList
+                    .remove(
+                        "hidden"
+                    );
+            }
+        }
+    );
+
+
+initializeAuth();
