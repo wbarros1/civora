@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     openai_extraction_model: str = (
         "gpt-5-mini"
     )
+    openai_classification_model: str = (
+        "gpt-5-mini"
+    )
     openai_model: str = "gpt-5-mini"
 
     user_agent: str = "PublicInhuurPlatform/0.1"
