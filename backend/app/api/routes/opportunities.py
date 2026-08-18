@@ -1,12 +1,21 @@
 """API-routes voor publieke inhuuropdrachten."""
 
 import logging
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
+    Depends,
     HTTPException,
     Query,
     status,
+)
+
+from backend.app.dependencies.auth import (
+    get_current_identity,
+)
+from backend.app.schemas.user import (
+    AuthenticatedIdentity,
 )
 
 from backend.app.repositories.opportunities import (
@@ -32,6 +41,12 @@ router = APIRouter()
     summary="Haal opdrachten op",
 )
 async def get_opportunities(
+    identity: Annotated[
+        AuthenticatedIdentity,
+        Depends(
+            get_current_identity
+        ),
+    ],
     search: str | None = Query(
         default=None,
         min_length=1,
@@ -138,6 +153,12 @@ async def get_opportunities(
 )
 async def get_opportunity_detail(
     opportunity_id: str,
+    identity: Annotated[
+        AuthenticatedIdentity,
+        Depends(
+            get_current_identity
+        ),
+    ],
 ) -> OpportunityDetail:
     """Geef de volledige opdracht terug."""
 

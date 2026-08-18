@@ -325,15 +325,39 @@ async function apiFetch(
     path,
     options = {}
 ) {
+    const {
+        data,
+        error,
+    } = await supabaseClient
+        .auth
+        .getSession();
+
+    if (error) {
+        console.error(
+            "Supabase sessie kon niet worden opgehaald:",
+            error
+        );
+
+        throw new Error(
+            "Je sessie kon niet worden gecontroleerd."
+        );
+    }
+
+    const session =
+        data.session;
+
+    currentSession =
+        session;
+
     const headers =
         new Headers(
             options.headers || {}
         );
 
-    if (currentSession?.access_token) {
+    if (session?.access_token) {
         headers.set(
             "Authorization",
-            `Bearer ${currentSession.access_token}`
+            `Bearer ${session.access_token}`
         );
     }
 
@@ -1744,8 +1768,8 @@ async function loadOpportunities({
     );
 
     try {
-        const response = await fetch(
-            `${API_BASE}/opportunities?${params}`
+        const response = await apiFetch(
+            `/opportunities?${params}`
         );
 
         if (!response.ok) {
@@ -1922,8 +1946,8 @@ async function openOpportunity(id) {
     );
 
     try {
-        const response = await fetch(
-            `${API_BASE}/opportunities/${id}`
+        const response = await apiFetch(
+            `/opportunities/${id}`
         );
 
         if (!response.ok) {
