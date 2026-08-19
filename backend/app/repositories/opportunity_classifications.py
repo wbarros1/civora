@@ -74,6 +74,304 @@ def _first_dict(
 
     return None
 
+def list_opportunities_for_classification(
+    *,
+    classifier_version: str,
+    limit: int,
+) -> list[str]:
+    """
+    Selecteer actieve opportunities waarvan de laatste succesvolle
+    extractierun nog niet met deze classifier-versie is verwerkt.
+    """
+
+    if limit < 1:
+        raise ValueError(
+            "limit moet minimaal 1 zijn."
+        )
+
+    if not classifier_version.strip():
+        raise ValueError(
+            "classifier_version mag niet leeg zijn."
+        )
+
+    client = get_supabase_client()
+
+    # ---------------------------------------------------------
+    # 1. Actieve structured opportunities
+    # ---------------------------------------------------------
+
+    active_response = (
+        client.table(
+            "structured_opportunities"
+        )
+        .select(
+            "id,"
+            "source_reference,"
+            "updated_at"
+        )
+        .eq(
+            "source_status",
+            "active",
+        )
+        .order(
+            "updated_at",
+            desc=True,
+        )
+        .limit(1000)
+        .execute()
+    )
+
+    active_rows = [
+        row
+        for row in (
+            active_response.data or []
+        )
+        if isinstance(
+            row,
+            dict,
+        )
+    ]
+
+    if not active_rows:
+        return []
+
+    active_by_reference: dict[
+        str,
+        str,
+    ] = {}
+
+    ordered_references: list[str] = []
+
+    for row in active_rows:
+        reference = row.get(
+            "source_reference"
+        )
+
+        structured_id = row.get(
+            "id"
+        )
+
+        if not isinstance(
+            reference,
+            str,
+        ):
+            continue
+
+        if not isinstance(
+            structured_id,
+            str,
+        ):
+            continue
+
+        reference = (
+            reference.strip()
+        )
+
+        structured_id = (
+            structured_id.strip()
+        )
+
+        if not reference:
+            continue
+
+        if not structured_id:
+            continue
+
+        active_by_reference[
+            reference
+        ] = structured_id
+
+        ordered_references.append(
+            reference
+        )
+
+    if not ordered_references:
+        return []
+
+    # ---------------------------------------------------------
+    # 2. Succesvolle extraction-runs ophalen
+    # ---------------------------------------------------------
+
+    runs_response = (
+        client.table(
+            "opportunity_extraction_runs"
+        )
+        .select(
+            "id,"
+            "source_reference,"
+            "structured_opportunity_id,"
+            "error_type,"
+            "completed_at,"
+            "created_at"
+        )
+        .in_(
+            "source_reference",
+            ordered_references,
+        )
+        .order(
+            "created_at",
+            desc=True,
+        )
+        .execute()
+    )
+
+    latest_runs: dict[
+        str,
+        str,
+    ] = {}
+
+    for row in (
+        runs_response.data or []
+    ):
+        if not isinstance(
+            row,
+            dict,
+        ):
+            continue
+
+        reference = row.get(
+            "source_reference"
+        )
+
+        run_id = row.get(
+            "id"
+        )
+
+        structured_id = row.get(
+            "structured_opportunity_id"
+        )
+
+        if not isinstance(
+            reference,
+            str,
+        ):
+            continue
+
+        if not isinstance(
+            run_id,
+            str,
+        ):
+            continue
+
+        if not isinstance(
+            structured_id,
+            str,
+        ):
+            continue
+
+        if reference in latest_runs:
+            continue
+
+        expected_structured_id = (
+            active_by_reference.get(
+                reference
+            )
+        )
+
+        if (
+            structured_id
+            != expected_structured_id
+        ):
+            continue
+
+        if row.get(
+            "error_type"
+        ) is not None:
+            continue
+
+        if row.get(
+            "completed_at"
+        ) is None:
+            continue
+
+        latest_runs[
+            reference
+        ] = run_id
+
+    if not latest_runs:
+        return []
+
+    # ---------------------------------------------------------
+    # 3. Bestaande classifications voor deze runs ophalen
+    # ---------------------------------------------------------
+
+    run_ids = list(
+        latest_runs.values()
+    )
+
+    classifications_response = (
+        client.table(
+            "opportunity_classifications"
+        )
+        .select(
+            "opportunity_extraction_run_id"
+        )
+        .eq(
+            "classifier_version",
+            classifier_version,
+        )
+        .in_(
+            "opportunity_extraction_run_id",
+            run_ids,
+        )
+        .execute()
+    )
+
+    classified_run_ids: set[str] = set()
+
+    for row in (
+        classifications_response.data or []
+    ):
+        if not isinstance(
+            row,
+            dict,
+        ):
+            continue
+
+        run_id = row.get(
+            "opportunity_extraction_run_id"
+        )
+
+        if isinstance(
+            run_id,
+            str,
+        ):
+            classified_run_ids.add(
+                run_id
+            )
+
+    # ---------------------------------------------------------
+    # 4. Alleen nog niet geclassificeerde opportunities
+    # ---------------------------------------------------------
+
+    selected: list[str] = []
+
+    for reference in (
+        ordered_references
+    ):
+        run_id = latest_runs.get(
+            reference
+        )
+
+        if run_id is None:
+            continue
+
+        if (
+            run_id
+            in classified_run_ids
+        ):
+            continue
+
+        selected.append(
+            reference
+        )
+
+        if len(
+            selected
+        ) >= limit:
+            break
+
+    return selected
 
 def get_latest_classification_context(
     source_reference: str,

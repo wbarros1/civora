@@ -17,7 +17,7 @@ from backend.app.services.opportunity_classification_input import (
 
 
 CLASSIFIER_VERSION = (
-    "civora-vakgroep-v1"
+    "civora-vakgroep-v2"
 )
 
 
@@ -106,6 +106,23 @@ Classificatieregels:
 - Een rol krijgt alleen een hoge score wanneer de werkzaamheden,
   verantwoordelijkheden, gevraagde ervaring of expertise daar
   daadwerkelijk aanleiding toe geven.
+
+PROCESMANAGEMENT - aanvullende afbakening:
+- Geef procesmanagement alleen een score van 60 of hoger wanneer
+  het managen, ontwerpen, verbeteren, veranderen of regisseren van
+  projecten, programma's, organisatieprocessen of implementaties
+  een substantieel onderdeel van de opdracht vormt.
+- Het uitvoeren van een bestaand werkproces is op zichzelf geen
+  procesmanagement.
+- Casemanagement, dossierbehandeling, intakegesprekken,
+  klantbegeleiding, aanvragen afhandelen, eigen werk plannen,
+  samenwerken met collega's of reguliere afstemming zijn op
+  zichzelf onvoldoende voor een procesmanagement-score van 60
+  of hoger.
+- Operationele coördinatie telt alleen zwaar mee wanneer de
+  professional aantoonbaar verantwoordelijkheid draagt voor
+  bredere procesregie, verandering, implementatie of
+  project-/programmasturing.
 
 Confidence:
 Geef één classification_confidence van 0 tot 1 voor de kwaliteit en
