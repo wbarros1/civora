@@ -231,6 +231,37 @@ def main() -> None:
                 "  Klant:  "
                 f"{opportunity.get('client_name')}"
             )
+            classification = (
+                output_payload.get(
+                    "classification",
+                    {},
+                )
+            )
+
+            print(
+                "  Classificatie: "
+                f"{classification.get('outcome')}"
+            )
+
+            if (
+                classification.get(
+                    "classification_id"
+                )
+            ):
+                print(
+                    "  Classification ID: "
+                    f"{classification.get('classification_id')}"
+                )
+
+            if (
+                classification.get(
+                    "error"
+                )
+            ):
+                print(
+                    "  Classification fout: "
+                    f"{classification.get('error')}"
+                )
 
         except Exception as error:
             failed += 1

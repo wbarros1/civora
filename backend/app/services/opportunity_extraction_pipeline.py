@@ -27,6 +27,10 @@ from backend.app.services.opportunity_text import (
     prepare_opportunity_text,
 )
 
+from backend.app.services.opportunity_classification_pipeline import (
+    execute_opportunity_classification,
+)
+
 
 @dataclass(
     frozen=True,
@@ -41,6 +45,10 @@ class ExtractionExecutionResult:
     existing_status: str | None
     structured_opportunity_id: str | None
     output_payload: dict[str, Any] | None
+
+    classification_outcome: str | None = None
+    classification_id: str | None = None
+    classification_error: str | None = None
 
 
 def get_raw_opportunity(
@@ -149,6 +157,52 @@ def determine_input_hash(
         )
     ).hexdigest()
 
+@dataclass(
+    frozen=True,
+    slots=True,
+)
+class PostExtractionClassificationResult:
+    """Resultaat van automatische classificatie na extraction."""
+
+    outcome: str
+    classification_id: str | None
+    error: str | None
+
+
+def execute_post_extraction_classification(
+    source_reference: str,
+) -> PostExtractionClassificationResult:
+    """
+    Classificeer een geëxtraheerde opportunity.
+
+    Een classificatiefout mag de reeds geslaagde extraction
+    nooit terugdraaien of als failed markeren.
+    """
+
+    try:
+        result = (
+            execute_opportunity_classification(
+                source_reference
+            )
+        )
+
+        return PostExtractionClassificationResult(
+            outcome=result.outcome,
+            classification_id=(
+                result.classification_id
+            ),
+            error=None,
+        )
+
+    except Exception as error:
+        return PostExtractionClassificationResult(
+            outcome="failed",
+            classification_id=None,
+            error=(
+                f"{type(error).__name__}: "
+                f"{str(error)[:4000]}"
+            ),
+        )
 
 def execute_opportunity_extraction(
     source_reference: str,
@@ -234,6 +288,23 @@ def execute_opportunity_extraction(
     )
 
     if not reservation.should_execute:
+        classification_result = None
+
+        if (
+            reservation
+            .structured_opportunity_id
+            is not None
+        ):
+            classification_result = (
+                execute_post_extraction_classification(
+                    str(
+                        raw_opportunity[
+                            "source_reference"
+                        ]
+                    )
+                )
+            )
+
         return ExtractionExecutionResult(
             source_reference=str(
                 raw_opportunity[
@@ -260,6 +331,25 @@ def execute_opportunity_extraction(
                 else None
             ),
             output_payload=None,
+            classification_outcome=(
+                classification_result.outcome
+                if classification_result
+                is not None
+                else None
+            ),
+            classification_id=(
+                classification_result
+                .classification_id
+                if classification_result
+                is not None
+                else None
+            ),
+            classification_error=(
+                classification_result.error
+                if classification_result
+                is not None
+                else None
+            ),
         )
 
     try:
@@ -326,6 +416,16 @@ def execute_opportunity_extraction(
         )
 
         raise
+
+    classification_result = (
+        execute_post_extraction_classification(
+            str(
+                raw_opportunity[
+                    "source_reference"
+                ]
+            )
+        )
+    )
 
     output_payload = {
         "source_reference": (
@@ -397,6 +497,20 @@ def execute_opportunity_extraction(
                 mode="json"
             )
         ),
+        "classification": {
+            "outcome": (
+                classification_result
+                .outcome
+            ),
+            "classification_id": (
+                classification_result
+                .classification_id
+            ),
+            "error": (
+                classification_result
+                .error
+            ),
+        },
         "database": {
             "extraction_run_id": (
                 persistence
@@ -433,4 +547,16 @@ def execute_opportunity_extraction(
             .structured_opportunity_id
         ),
         output_payload=output_payload,
+        classification_outcome=(
+            classification_result
+            .outcome
+        ),
+        classification_id=(
+            classification_result
+            .classification_id
+        ),
+        classification_error=(
+            classification_result
+            .error
+        ),
     )
