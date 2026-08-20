@@ -29,6 +29,7 @@ const state = {
     offset: 0,
     hasMore: false,
     loading: false,
+    feed: "for_you",
 };
 
 
@@ -79,7 +80,7 @@ const elements = {
         document.getElementById(
             "drawer-content"
         ),
-    
+
     authScreen:
     document.getElementById(
         "auth-screen"
@@ -189,7 +190,7 @@ const elements = {
         document.getElementById(
             "profile-message"
         ),
-    
+
     saveSearchButton:
     document.getElementById(
         "save-search-button"
@@ -264,6 +265,22 @@ const elements = {
         document.getElementById(
             "saved-searches-message"
         ),
+
+    feedForYou: document.getElementById(
+        "feed-for-you"
+    ),
+
+    feedAll: document.getElementById(
+        "feed-all"
+    ),
+
+    feedTitle: document.getElementById(
+        "feed-title"
+    ),
+
+    feedDescription: document.getElementById(
+        "feed-description"
+    ),
 };
 
 function showAuthMessage(
@@ -728,6 +745,10 @@ async function showAuthenticatedApp() {
             "hidden"
         );
 
+        state.feed = "for_you";
+
+        updateFeedControls();
+
         await loadOpportunities();
 
     } catch (error) {
@@ -987,6 +1008,111 @@ function getLocation(item) {
     );
 }
 
+function formatVakgroep(
+    value
+) {
+    const labels = {
+        procesmanagement:
+            "Procesmanagement",
+        data_ai:
+            "Data & AI",
+        ict:
+            "ICT",
+        finance:
+            "Finance",
+        overige:
+            "Overige",
+    };
+
+    return (
+        labels[value]
+        || "Jouw vakgroep"
+    );
+}
+
+function updateFeedControls() {
+    const isForYou =
+        state.feed === "for_you";
+
+    elements.feedForYou
+        .classList
+        .toggle(
+            "active",
+            isForYou
+        );
+
+    elements.feedAll
+        .classList
+        .toggle(
+            "active",
+            !isForYou
+        );
+
+    elements.feedForYou
+        .setAttribute(
+            "aria-pressed",
+            String(isForYou)
+        );
+
+    elements.feedAll
+        .setAttribute(
+            "aria-pressed",
+            String(!isForYou)
+        );
+
+    if (isForYou) {
+        elements.feedTitle
+            .textContent =
+                "Voor jou";
+
+        elements.feedDescription
+            .textContent =
+                "Opdrachten die aansluiten "
+                + "op jouw vakgroep, "
+                + "gerangschikt op relevantie.";
+
+        return;
+    }
+
+    elements.feedTitle
+        .textContent =
+            "Alle opdrachten";
+
+    elements.feedDescription
+        .textContent =
+            "Bekijk alle actieve publieke "
+            + "inhuuropdrachten in Civora.";
+}
+
+
+async function setFeed(
+    feed
+) {
+    if (
+        ![
+            "for_you",
+            "all",
+        ].includes(
+            feed
+        )
+    ) {
+        return;
+    }
+
+    if (
+        state.loading
+        || state.feed === feed
+    ) {
+        return;
+    }
+
+    state.feed = feed;
+    state.offset = 0;
+
+    updateFeedControls();
+
+    await loadOpportunities();
+}
 
 function createCard(item) {
     const article =
@@ -998,6 +1124,36 @@ function createCard(item) {
         "opportunity-card";
 
     article.tabIndex = 0;
+
+    const relevanceScore =
+        Number(
+            item.relevance_score
+        );
+
+    const showMatch =
+        state.feed === "for_you"
+        && Number.isFinite(
+            relevanceScore
+        );
+
+    const matchMarkup =
+        showMatch
+            ? `
+                <div class="card-match-row">
+                    <span class="match-badge">
+                        ${escapeHtml(
+                            formatVakgroep(
+                                item.matched_vakgroep
+                            )
+                        )}
+                        ·
+                        ${Math.round(
+                            relevanceScore
+                        )}% match
+                    </span>
+                </div>
+            `
+            : "";
 
     article.innerHTML = `
         <div class="card-top">
@@ -1026,6 +1182,8 @@ function createCard(item) {
                 || "Opdrachtgever niet vermeld"
             )}
         </p>
+
+        ${matchMarkup}
 
         <div class="card-details">
 
@@ -1726,6 +1884,69 @@ function formatFilterName(key) {
     return mapping[key] || key;
 }
 
+function renderEmptyState() {
+    if (
+        state.feed === "for_you"
+    ) {
+        elements.empty.innerHTML = `
+            <div class="empty-icon">
+                C
+            </div>
+
+            <h3>
+                Geen passende opdrachten gevonden
+            </h3>
+
+            <p>
+                Er zijn momenteel geen opdrachten
+                die aansluiten op jouw vakgroep
+                en de gekozen filters.
+            </p>
+
+            <button
+                type="button"
+                class="
+                    button
+                    button-secondary
+                    empty-view-all
+                "
+            >
+                Bekijk alle opdrachten
+            </button>
+        `;
+
+        elements.empty
+            .querySelector(
+                ".empty-view-all"
+            )
+            ?.addEventListener(
+                "click",
+                () => {
+                    setFeed(
+                        "all"
+                    );
+                }
+            );
+
+        return;
+    }
+
+    elements.empty.innerHTML = `
+        <div class="empty-icon">
+            C
+        </div>
+
+        <h3>
+            Geen opdrachten gevonden
+        </h3>
+
+        <p>
+            Pas je filters aan en
+            probeer het opnieuw.
+        </p>
+    `;
+}
+
 async function loadOpportunities({
     append = false,
 } = {}) {
@@ -1753,9 +1974,20 @@ async function loadOpportunities({
         elements.empty.classList.add(
             "hidden"
         );
+
+        elements.loadMoreContainer
+            .classList
+            .add(
+                "hidden"
+            );
     }
 
     const params = getFilters();
+
+    params.set(
+        "feed",
+        state.feed
+    );
 
     params.set(
         "limit",
@@ -1813,6 +2045,8 @@ async function loadOpportunities({
                 "hidden"
             );
 
+            renderEmptyState();
+
             elements.empty.classList.remove(
                 "hidden"
             );
@@ -1826,10 +2060,21 @@ async function loadOpportunities({
             );
         }
 
-        elements.resultsMeta.textContent =
-            state.offset === 1
-                ? "1 opdracht geladen"
-                : `${state.offset} opdrachten geladen`;
+        if (
+            state.feed === "for_you"
+        ) {
+            elements.resultsMeta
+                .textContent =
+                    state.offset === 1
+                        ? "1 passende opdracht geladen"
+                        : `${state.offset} passende opdrachten geladen`;
+        } else {
+            elements.resultsMeta
+                .textContent =
+                    state.offset === 1
+                        ? "1 opdracht geladen"
+                        : `${state.offset} opdrachten geladen`;
+        }
 
         elements.loadMoreContainer
             .classList.toggle(
@@ -2199,6 +2444,27 @@ elements.backdrop.addEventListener(
     "click",
     closeDrawer
 );
+
+elements.feedForYou
+    .addEventListener(
+        "click",
+        () => {
+            setFeed(
+                "for_you"
+            );
+        }
+    );
+
+
+elements.feedAll
+    .addEventListener(
+        "click",
+        () => {
+            setFeed(
+                "all"
+            );
+        }
+    );
 
 
 document.addEventListener(

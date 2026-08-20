@@ -337,6 +337,44 @@
                 </div>
               </div>
             </form>
+            <div class="feed-toolbar">
+              <div class="feed-copy">
+                <span class="feed-eyebrow"> PERSOONLIJKE SELECTIE </span>
+
+                <h2 id="feed-title">Voor jou</h2>
+
+                <p id="feed-description">
+                  Opdrachten die aansluiten op jouw vakgroep, gerangschikt op
+                  relevantie.
+                </p>
+              </div>
+
+              <div
+                class="feed-switch"
+                role="group"
+                aria-label="Kies opdrachtweergave"
+              >
+                <button
+                  id="feed-for-you"
+                  type="button"
+                  class="feed-switch-button active"
+                  data-feed="for_you"
+                  aria-pressed="true"
+                >
+                  Voor jou
+                </button>
+
+                <button
+                  id="feed-all"
+                  type="button"
+                  class="feed-switch-button"
+                  data-feed="all"
+                  aria-pressed="false"
+                >
+                  Alle opdrachten
+                </button>
+              </div>
+            </div>
 
             <div class="results-header">
               <div>

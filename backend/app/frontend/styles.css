@@ -898,6 +898,138 @@ button {
     margin-top: 30px;
 }
 
+/* Personalised feed */
+
+.feed-toolbar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+
+    gap: 24px;
+
+    margin:
+        34px
+        0
+        22px;
+}
+
+
+.feed-copy h2 {
+    margin:
+        5px
+        0
+        6px;
+
+    font-size: 28px;
+
+    letter-spacing: -0.035em;
+}
+
+
+.feed-copy p {
+    margin: 0;
+
+    color: var(--text-soft);
+
+    font-size: 14px;
+}
+
+
+.feed-eyebrow {
+    color: var(--gold-dark);
+
+    font-size: 11px;
+    font-weight: 800;
+
+    letter-spacing: 0.08em;
+}
+
+
+.feed-switch {
+    display: inline-flex;
+
+    padding: 4px;
+
+    background: var(--surface-soft);
+
+    border:
+        1px solid
+        var(--border);
+
+    border-radius: 12px;
+}
+
+
+.feed-switch-button {
+    min-height: 40px;
+
+    padding:
+        0
+        17px;
+
+    color: var(--text-soft);
+    background: transparent;
+
+    border: 0;
+    border-radius: 9px;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+
+.feed-switch-button:hover {
+    color: var(--text);
+}
+
+
+.feed-switch-button.active {
+    color: var(--text);
+
+    background: white;
+
+    box-shadow:
+        0 3px 10px
+        rgba(20, 20, 15, 0.08);
+}
+
+
+.card-match-row {
+    display: flex;
+
+    margin-top: 14px;
+}
+
+
+.match-badge {
+    display: inline-flex;
+    align-items: center;
+
+    min-height: 29px;
+
+    padding:
+        0
+        10px;
+
+    color: var(--gold-dark);
+
+    background: var(--gold-soft);
+
+    border-radius: 999px;
+
+    font-size: 12px;
+    font-weight: 750;
+}
+
+
+.empty-view-all {
+    margin-top: 20px;
+}
 
 /* Drawer */
 
@@ -1325,6 +1457,23 @@ body.drawer-open {
 
 .saved-search-actions .button {
     width: 100%;
+}
+
+.feed-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+
+    gap: 16px;
+}
+
+
+.feed-switch {
+    width: 100%;
+}
+
+
+.feed-switch-button {
+    flex: 1;
 }
 }
 
