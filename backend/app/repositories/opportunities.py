@@ -30,6 +30,16 @@ LIST_COLUMNS = (
 )
 
 
+PERSONALISED_LIST_COLUMNS = (
+    LIST_COLUMNS
+    + ","
+    "primary_vakgroep,"
+    "matched_vakgroep,"
+    "relevance_score,"
+    "classification_confidence"
+)
+
+
 DETAIL_COLUMNS = (
     LIST_COLUMNS
     + ","
@@ -57,6 +67,8 @@ def list_opportunities(
     work_arrangement: str | None = None,
     employment_relationship: str | None = None,
     application_status: str | None = None,
+    user_vakgroep: str | None = None,
+    classifier_version: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -64,18 +76,47 @@ def list_opportunities(
 
     client = get_supabase_client()
 
-    query = (
-        client.table(
-            "structured_opportunities"
-        )
-        .select(
-            LIST_COLUMNS
-        )
-        .eq(
-            "source_status",
-            "active",
-        )
+    personalised = (
+        user_vakgroep is not None
     )
+
+    if personalised:
+        if not classifier_version:
+            raise ValueError(
+                "classifier_version is verplicht "
+                "voor een gepersonaliseerde feed."
+            )
+
+        query = (
+            client.table(
+                "opportunity_feed_matches"
+            )
+            .select(
+                PERSONALISED_LIST_COLUMNS
+            )
+            .eq(
+                "matched_vakgroep",
+                user_vakgroep,
+            )
+            .eq(
+                "classifier_version",
+                classifier_version,
+            )
+        )
+
+    else:
+        query = (
+            client.table(
+                "structured_opportunities"
+            )
+            .select(
+                LIST_COLUMNS
+            )
+            .eq(
+                "source_status",
+                "active",
+            )
+        )
 
     if search:
         query = query.ilike(
@@ -113,12 +154,27 @@ def list_opportunities(
             application_status,
         )
 
-    response = (
-        query
-        .order(
+    if personalised:
+        query = (
+            query
+            .order(
+                "relevance_score",
+                desc=True,
+            )
+            .order(
+                "application_deadline",
+                desc=False,
+            )
+        )
+
+    else:
+        query = query.order(
             "application_deadline",
             desc=False,
         )
+
+    response = (
+        query
         .range(
             offset,
             offset + limit,

@@ -1,9 +1,15 @@
 """API-schema's voor gestructureerde opdrachten."""
 
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
+
+
+OpportunityFeed = Literal[
+    "for_you",
+    "all",
+]
 
 
 class OpportunityListItem(BaseModel):
@@ -36,6 +42,11 @@ class OpportunityListItem(BaseModel):
     source_status: str
     application_status: str
 
+    primary_vakgroep: str | None = None
+    matched_vakgroep: str | None = None
+    relevance_score: int | None = None
+    classification_confidence: float | None = None
+
 
 class OpportunityListResponse(BaseModel):
     """Gepagineerde lijst met opdrachten."""
@@ -45,6 +56,9 @@ class OpportunityListResponse(BaseModel):
     limit: int
     offset: int
     has_more: bool
+
+    feed: OpportunityFeed = "all"
+    vakgroep: str | None = None
 
 
 class OpportunityDetail(OpportunityListItem):
