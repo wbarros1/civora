@@ -7,6 +7,9 @@ from backend.app.api.routes.sources import router as sources_router
 from backend.app.api.routes.opportunities import (
     router as opportunities_router,
 )
+from backend.app.api.routes.user_cv import (
+    router as user_cv_router,
+)
 
 from backend.app.api.routes.auth import (
     router as auth_router,
@@ -47,4 +50,10 @@ api_router.include_router(
     auth_router,
     prefix="/auth",
     tags=["Auth"],
+)
+
+api_router.include_router(
+    user_cv_router,
+    prefix="/user-cv",
+    tags=["User CV"],
 )
