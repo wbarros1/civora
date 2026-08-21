@@ -255,3 +255,44 @@ def delete_user_cv_record(
         )
         .execute()
     )
+
+def is_user_cv_in_use(
+    *,
+    user_id: str,
+    cv_id: str,
+) -> bool:
+    """
+    Controleer of een CV al wordt gebruikt
+    door een documentgeneratie.
+    """
+
+    client = (
+        get_supabase_client()
+    )
+
+    response = (
+        client.table(
+            "application_generation_runs"
+        )
+        .select(
+            "id"
+        )
+        .eq(
+            "user_id",
+            user_id,
+        )
+        .eq(
+            "user_cv_id",
+            cv_id,
+        )
+        .limit(1)
+        .execute()
+    )
+
+    rows = (
+        response.data or []
+    )
+
+    return bool(
+        rows
+    )

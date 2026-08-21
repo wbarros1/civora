@@ -305,3 +305,34 @@ def remove_user_cv_file(
             ]
         )
     )
+
+def download_user_cv_file(
+    *,
+    storage_path: str,
+) -> bytes:
+    """Download een CV uit de private Storage-bucket."""
+
+    client = (
+        get_supabase_client()
+    )
+
+    content = (
+        client.storage
+        .from_(
+            USER_CV_BUCKET
+        )
+        .download(
+            storage_path
+        )
+    )
+
+    if not isinstance(
+        content,
+        bytes,
+    ):
+        raise RuntimeError(
+            "Supabase Storage gaf geen "
+            "geldig CV-bestand terug."
+        )
+
+    return content
