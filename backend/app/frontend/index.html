@@ -485,6 +485,99 @@
             <span class="field-help"> De rol wordt beheerd door Civora. </span>
           </div>
 
+          <section
+            class="profile-cv-section"
+            aria-labelledby="profile-cv-title"
+          >
+            <div class="profile-cv-header">
+              <div>
+                <span class="section-label"> DOCUMENT </span>
+
+                <h3 id="profile-cv-title">Basis-CV</h3>
+              </div>
+
+              <span class="profile-cv-limit"> PDF of DOCX · max. 10 MB </span>
+            </div>
+
+            <input
+              id="profile-cv-input"
+              class="hidden"
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            />
+
+            <div id="profile-cv-loading" class="profile-cv-loading hidden">
+              CV-gegevens laden...
+            </div>
+
+            <div id="profile-cv-empty" class="profile-cv-empty hidden">
+              <div class="profile-cv-empty-icon">CV</div>
+
+              <div>
+                <strong> Nog geen basis-CV toegevoegd </strong>
+
+                <p>
+                  Voeg je huidige CV toe. Civora gebruikt dit document later als
+                  bron voor vacaturegerichte reacties.
+                </p>
+              </div>
+
+              <button
+                id="profile-cv-upload"
+                type="button"
+                class="button button-secondary"
+              >
+                Basis-CV uploaden
+              </button>
+            </div>
+
+            <div id="profile-cv-current" class="profile-cv-card hidden">
+              <div class="profile-cv-file">
+                <div class="profile-cv-file-icon">CV</div>
+
+                <div class="profile-cv-file-info">
+                  <strong id="profile-cv-filename"> - </strong>
+
+                  <span id="profile-cv-meta"> - </span>
+
+                  <span id="profile-cv-uploaded-at"> - </span>
+                </div>
+              </div>
+
+              <div class="profile-cv-actions">
+                <button
+                  id="profile-cv-download"
+                  type="button"
+                  class="button button-secondary"
+                >
+                  Downloaden
+                </button>
+
+                <button
+                  id="profile-cv-replace"
+                  type="button"
+                  class="button button-secondary"
+                >
+                  CV vervangen
+                </button>
+
+                <button
+                  id="profile-cv-delete"
+                  type="button"
+                  class="button button-secondary profile-cv-delete"
+                >
+                  Verwijderen
+                </button>
+              </div>
+            </div>
+
+            <div
+              id="profile-cv-message"
+              class="auth-message hidden"
+              aria-live="polite"
+            ></div>
+          </section>
+
           <div class="profile-actions">
             <button
               id="cancel-profile"

@@ -20,6 +20,7 @@ const supabaseClient =
 
 let currentSession = null;
 let currentUser = null;
+let currentUserCv = null;
 
 
 const API_BASE = "/api/v1";
@@ -189,6 +190,66 @@ const elements = {
     profileMessage:
         document.getElementById(
             "profile-message"
+        ),
+
+    profileCvInput:
+        document.getElementById(
+            "profile-cv-input"
+        ),
+
+    profileCvLoading:
+        document.getElementById(
+            "profile-cv-loading"
+        ),
+
+    profileCvEmpty:
+        document.getElementById(
+            "profile-cv-empty"
+        ),
+
+    profileCvCurrent:
+        document.getElementById(
+            "profile-cv-current"
+        ),
+
+    profileCvUpload:
+        document.getElementById(
+            "profile-cv-upload"
+        ),
+
+    profileCvFilename:
+        document.getElementById(
+            "profile-cv-filename"
+        ),
+
+    profileCvMeta:
+        document.getElementById(
+            "profile-cv-meta"
+        ),
+
+    profileCvUploadedAt:
+        document.getElementById(
+            "profile-cv-uploaded-at"
+        ),
+
+    profileCvDownload:
+        document.getElementById(
+            "profile-cv-download"
+        ),
+
+    profileCvReplace:
+        document.getElementById(
+            "profile-cv-replace"
+        ),
+
+    profileCvDelete:
+        document.getElementById(
+            "profile-cv-delete"
+        ),
+
+    profileCvMessage:
+        document.getElementById(
+            "profile-cv-message"
         ),
 
     saveSearchButton:
@@ -425,10 +486,633 @@ async function loadCurrentUser() {
     renderCurrentUser();
 }
 
-function openProfile() {
+function formatCvFileSize(
+    value
+) {
+    const bytes =
+        Number(value);
+
+    if (
+        !Number.isFinite(bytes)
+        || bytes <= 0
+    ) {
+        return "Onbekende grootte";
+    }
+
+    if (
+        bytes < 1024 * 1024
+    ) {
+        return (
+            `${Math.max(
+                1,
+                Math.round(
+                    bytes / 1024
+                )
+            )} KB`
+        );
+    }
+
+    const megabytes =
+        bytes
+        / (
+            1024 * 1024
+        );
+
+    return (
+        `${megabytes.toLocaleString(
+            "nl-NL",
+            {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+            }
+        )} MB`
+    );
+}
+
+
+function formatCvType(
+    mimeType
+) {
+    if (
+        mimeType
+        === "application/pdf"
+    ) {
+        return "PDF";
+    }
+
+    if (
+        mimeType
+        === (
+            "application/vnd.openxmlformats-officedocument."
+            + "wordprocessingml.document"
+        )
+    ) {
+        return "DOCX";
+    }
+
+    return "Bestand";
+}
+
+
+function formatCvStatus(
+    value
+) {
+    const labels = {
+        uploaded:
+            "Opgeslagen",
+
+        processing:
+            "Wordt verwerkt",
+
+        ready:
+            "Klaar",
+
+        failed:
+            "Verwerking mislukt",
+    };
+
+    return (
+        labels[value]
+        || "Onbekende status"
+    );
+}
+
+
+function formatCvUploadedAt(
+    value
+) {
+    if (!value) {
+        return "";
+    }
+
+    const date =
+        new Date(
+            value
+        );
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return "";
+    }
+
+    return (
+        "Geüpload op "
+        + new Intl.DateTimeFormat(
+            "nl-NL",
+            {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+            }
+        ).format(
+            date
+        )
+    );
+}
+
+
+function clearProfileCvMessage() {
+    elements.profileCvMessage
+        .textContent = "";
+
+    elements.profileCvMessage
+        .className =
+            "auth-message hidden";
+}
+
+
+function showProfileCvMessage(
+    message,
+    type = "error"
+) {
+    elements.profileCvMessage
+        .textContent =
+            message;
+
+    elements.profileCvMessage
+        .className =
+            `auth-message ${type}`;
+}
+
+
+function setProfileCvBusy(
+    busy
+) {
+    elements.profileCvUpload
+        .disabled = busy;
+
+    elements.profileCvReplace
+        .disabled = busy;
+
+    elements.profileCvDownload
+        .disabled = busy;
+
+    elements.profileCvDelete
+        .disabled = busy;
+
+    elements.profileCvInput
+        .disabled = busy;
+}
+
+
+function renderUserCv() {
+    elements.profileCvLoading
+        .classList
+        .add(
+            "hidden"
+        );
+
+    if (!currentUserCv) {
+        elements.profileCvCurrent
+            .classList
+            .add(
+                "hidden"
+            );
+
+        elements.profileCvEmpty
+            .classList
+            .remove(
+                "hidden"
+            );
+
+        return;
+    }
+
+    elements.profileCvEmpty
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.profileCvCurrent
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    elements.profileCvFilename
+        .textContent =
+            currentUserCv
+                .original_filename
+            || "Basis-CV";
+
+    elements.profileCvMeta
+        .textContent = [
+            formatCvType(
+                currentUserCv
+                    .mime_type
+            ),
+
+            formatCvFileSize(
+                currentUserCv
+                    .file_size_bytes
+            ),
+
+            formatCvStatus(
+                currentUserCv
+                    .processing_status
+            ),
+        ].join(
+            " · "
+        );
+
+    elements.profileCvUploadedAt
+        .textContent =
+            formatCvUploadedAt(
+                currentUserCv
+                    .uploaded_at
+            );
+}
+
+
+async function loadUserCv() {
+    clearProfileCvMessage();
+
+    elements.profileCvEmpty
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.profileCvCurrent
+        .classList
+        .add(
+            "hidden"
+        );
+
+    elements.profileCvLoading
+        .classList
+        .remove(
+            "hidden"
+        );
+
+    try {
+        const response =
+            await apiFetch(
+                "/user-cv"
+            );
+
+        if (!response.ok) {
+            const errorData =
+                await response
+                    .json()
+                    .catch(
+                        () => ({})
+                    );
+
+            throw new Error(
+                errorData.detail
+                || (
+                    "Je basis-CV kon "
+                    + "niet worden geladen."
+                )
+            );
+        }
+
+        currentUserCv =
+            await response.json();
+
+        renderUserCv();
+
+    } catch (error) {
+        console.error(
+            error
+        );
+
+        currentUserCv = null;
+
+        elements.profileCvLoading
+            .classList
+            .add(
+                "hidden"
+            );
+
+        showProfileCvMessage(
+            error.message
+            || (
+                "Je basis-CV kon "
+                + "niet worden geladen."
+            )
+        );
+    }
+}
+
+
+async function uploadUserCv(
+    file
+) {
+    if (!file) {
+        return;
+    }
+
+    clearProfileCvMessage();
+
+    const filename =
+        String(
+            file.name || ""
+        );
+
+    if (
+        !/\.(pdf|docx)$/i
+            .test(
+                filename
+            )
+    ) {
+        showProfileCvMessage(
+            "Alleen PDF- en DOCX-bestanden "
+            + "worden ondersteund."
+        );
+
+        elements.profileCvInput.value =
+            "";
+
+        return;
+    }
+
+    if (
+        file.size === 0
+    ) {
+        showProfileCvMessage(
+            "Het geselecteerde bestand is leeg."
+        );
+
+        elements.profileCvInput.value =
+            "";
+
+        return;
+    }
+
+    if (
+        file.size
+        > 10 * 1024 * 1024
+    ) {
+        showProfileCvMessage(
+            "Het CV mag maximaal 10 MB zijn."
+        );
+
+        elements.profileCvInput.value =
+            "";
+
+        return;
+    }
+
+    const formData =
+        new FormData();
+
+    formData.append(
+        "file",
+        file
+    );
+
+    setProfileCvBusy(
+        true
+    );
+
+    showProfileCvMessage(
+        "CV wordt geüpload...",
+        "success"
+    );
+
+    try {
+        const response =
+            await apiFetch(
+                "/user-cv",
+                {
+                    method: "POST",
+                    body: formData,
+                }
+            );
+
+        if (!response.ok) {
+            const errorData =
+                await response
+                    .json()
+                    .catch(
+                        () => ({})
+                    );
+
+            throw new Error(
+                errorData.detail
+                || (
+                    "Het CV kon niet "
+                    + "worden geüpload."
+                )
+            );
+        }
+
+        currentUserCv =
+            await response.json();
+
+        renderUserCv();
+
+        showProfileCvMessage(
+            "Je basis-CV is opgeslagen.",
+            "success"
+        );
+
+    } catch (error) {
+        console.error(
+            error
+        );
+
+        showProfileCvMessage(
+            error.message
+            || (
+                "Het CV kon niet "
+                + "worden geüpload."
+            )
+        );
+
+    } finally {
+        elements.profileCvInput
+            .value = "";
+
+        setProfileCvBusy(
+            false
+        );
+    }
+}
+
+
+async function downloadUserCv() {
+    if (!currentUserCv) {
+        return;
+    }
+
+    clearProfileCvMessage();
+
+    setProfileCvBusy(
+        true
+    );
+
+    try {
+        const response =
+            await apiFetch(
+                "/user-cv/download"
+            );
+
+        if (!response.ok) {
+            const errorData =
+                await response
+                    .json()
+                    .catch(
+                        () => ({})
+                    );
+
+            throw new Error(
+                errorData.detail
+                || (
+                    "Het CV kon niet "
+                    + "worden gedownload."
+                )
+            );
+        }
+
+        const blob =
+            await response.blob();
+
+        const objectUrl =
+            URL.createObjectURL(
+                blob
+            );
+
+        const link =
+            document.createElement(
+                "a"
+            );
+
+        link.href =
+            objectUrl;
+
+        link.download =
+            currentUserCv
+                .original_filename
+            || "Civora_CV";
+
+        document.body
+            .appendChild(
+                link
+            );
+
+        link.click();
+        link.remove();
+
+        window.setTimeout(
+            () => {
+                URL.revokeObjectURL(
+                    objectUrl
+                );
+            },
+            1000
+        );
+
+    } catch (error) {
+        console.error(
+            error
+        );
+
+        showProfileCvMessage(
+            error.message
+            || (
+                "Het CV kon niet "
+                + "worden gedownload."
+            )
+        );
+
+    } finally {
+        setProfileCvBusy(
+            false
+        );
+    }
+}
+
+
+async function deleteUserCv() {
+    if (!currentUserCv) {
+        return;
+    }
+
+    const confirmed =
+        window.confirm(
+            "Weet je zeker dat je dit "
+            + "basis-CV wilt verwijderen?"
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    clearProfileCvMessage();
+
+    setProfileCvBusy(
+        true
+    );
+
+    try {
+        const response =
+            await apiFetch(
+                "/user-cv",
+                {
+                    method: "DELETE",
+                }
+            );
+
+        if (!response.ok) {
+            const errorData =
+                await response
+                    .json()
+                    .catch(
+                        () => ({})
+                    );
+
+            throw new Error(
+                errorData.detail
+                || (
+                    "Het CV kon niet "
+                    + "worden verwijderd."
+                )
+            );
+        }
+
+        currentUserCv = null;
+
+        renderUserCv();
+
+        showProfileCvMessage(
+            "Je basis-CV is verwijderd.",
+            "success"
+        );
+
+    } catch (error) {
+        console.error(
+            error
+        );
+
+        showProfileCvMessage(
+            error.message
+            || (
+                "Het CV kon niet "
+                + "worden verwijderd."
+            )
+        );
+
+    } finally {
+        setProfileCvBusy(
+            false
+        );
+    }
+}
+
+
+async function openProfile() {
     if (!currentUser) {
         return;
     }
+
+    closeDrawer();
 
     elements.profileName.value =
         currentUser.full_name;
@@ -451,6 +1135,8 @@ function openProfile() {
             "hidden"
         );
 
+    clearProfileCvMessage();
+
     elements.profileModal
         .classList
         .remove(
@@ -466,6 +1152,8 @@ function openProfile() {
     document.body.classList.add(
         "drawer-open"
     );
+
+    await loadUserCv();
 }
 
 
@@ -2445,6 +3133,58 @@ elements.backdrop.addEventListener(
     closeDrawer
 );
 
+elements.profileCvUpload
+    .addEventListener(
+        "click",
+        () => {
+            elements.profileCvInput
+                .click();
+        }
+    );
+
+
+elements.profileCvReplace
+    .addEventListener(
+        "click",
+        () => {
+            elements.profileCvInput
+                .click();
+        }
+    );
+
+
+elements.profileCvInput
+    .addEventListener(
+        "change",
+        async () => {
+            const file =
+                elements.profileCvInput
+                    .files?.[0];
+
+            if (!file) {
+                return;
+            }
+
+            await uploadUserCv(
+                file
+            );
+        }
+    );
+
+
+elements.profileCvDownload
+    .addEventListener(
+        "click",
+        downloadUserCv
+    );
+
+
+elements.profileCvDelete
+    .addEventListener(
+        "click",
+        deleteUserCv
+    );
+
 elements.feedForYou
     .addEventListener(
         "click",
@@ -2527,6 +3267,7 @@ supabaseClient
                 event === "SIGNED_OUT"
             ) {
                 currentUser = null;
+                currentUserCv = null;
 
                 elements.appShell
                     .classList
