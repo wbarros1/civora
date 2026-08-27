@@ -1,6 +1,9 @@
 """Databasefuncties voor gebruikers-CV's."""
 
 from typing import Any
+from backend.app.schemas.user_cv import (
+    CvProcessingStatus,
+)
 
 from backend.app.database.client import (
     get_supabase_client,
@@ -296,3 +299,64 @@ def is_user_cv_in_use(
     return bool(
         rows
     )
+
+
+def update_user_cv_processing_status(
+    *,
+    user_id: str,
+    cv_id: str,
+    status: CvProcessingStatus,
+    processing_error: str | None = None,
+) -> dict[str, Any]:
+    """
+    Werk de verwerkingsstatus van één
+    gebruikers-CV bij.
+    """
+
+    client = (
+        get_supabase_client()
+    )
+
+    error_value = (
+        processing_error[:1000]
+        if processing_error
+        else None
+    )
+
+    (
+        client.table(
+            "user_cvs"
+        )
+        .update(
+            {
+                "processing_status": (
+                    status
+                ),
+                "processing_error": (
+                    error_value
+                ),
+            }
+        )
+        .eq(
+            "id",
+            cv_id,
+        )
+        .eq(
+            "user_id",
+            user_id,
+        )
+        .execute()
+    )
+
+    row = get_user_cv(
+        user_id=user_id,
+        cv_id=cv_id,
+    )
+
+    if row is None:
+        raise RuntimeError(
+            "Bijgewerkt CV kon niet "
+            "worden teruggelezen."
+        )
+
+    return row
