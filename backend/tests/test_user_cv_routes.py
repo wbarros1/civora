@@ -1,9 +1,17 @@
 """Tests voor de API-routes van het basis-CV."""
 
 import asyncio
+import logging
+
+from io import BytesIO
+from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from fastapi import (
+    BackgroundTasks,
+    HTTPException,
+    UploadFile,
+)
 
 from backend.app.api.routes import (
     user_cv as user_cv_route,
@@ -46,6 +54,70 @@ CV_ROW = {
     ),
 }
 
+def configure_successful_upload(
+    monkeypatch,
+) -> None:
+    """Mock een volledig geslaagde CV-upload."""
+
+    validated = SimpleNamespace(
+        extension=".pdf",
+        original_filename="Nieuw CV.pdf",
+        mime_type="application/pdf",
+        file_size_bytes=1234,
+        sha256=(
+            "b" * 64
+        ),
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "validate_cv_file",
+        lambda **_: validated,
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "uuid4",
+        lambda: "cv-new",
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "build_cv_storage_path",
+        lambda **_: (
+            "user-1/cv-new/source.pdf"
+        ),
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "upload_user_cv_file",
+        lambda **_: None,
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "create_user_cv",
+        lambda **_: {},
+    )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "activate_user_cv",
+        lambda **_: {
+            **CV_ROW,
+            "id": "cv-new",
+            "original_filename": (
+                "Nieuw CV.pdf"
+            ),
+            "storage_path": (
+                "user-1/cv-new/source.pdf"
+            ),
+            "sha256": (
+                "b" * 64
+            ),
+        },
+    )
 
 def test_get_current_user_cv(
     monkeypatch,
@@ -262,3 +334,184 @@ def test_delete_current_user_cv(
         "storage",
         "database",
     ]
+
+
+def test_upload_schedules_candidate_processing(
+    monkeypatch,
+) -> None:
+    configure_successful_upload(
+        monkeypatch
+    )
+
+    background_tasks = (
+        BackgroundTasks()
+    )
+
+    file = UploadFile(
+        filename="Nieuw CV.pdf",
+        file=BytesIO(
+            b"%PDF-test"
+        ),
+    )
+
+    result = asyncio.run(
+        user_cv_route.upload_user_cv(
+            background_tasks=(
+                background_tasks
+            ),
+            identity=IDENTITY,
+            file=file,
+        )
+    )
+
+    assert (
+        result.id
+        == "cv-new"
+    )
+
+    assert (
+        result.processing_status
+        == "uploaded"
+    )
+
+    assert (
+        len(
+            background_tasks.tasks
+        )
+        == 1
+    )
+
+    task = (
+        background_tasks.tasks[0]
+    )
+
+    assert (
+        task.func
+        is user_cv_route
+        .process_user_cv_in_background
+    )
+
+    assert (
+        task.kwargs
+        == {
+            "user_id": "user-1",
+            "cv_id": "cv-new",
+        }
+    )
+
+
+def test_background_processing_failure_is_swallowed(
+    monkeypatch,
+    caplog,
+) -> None:
+    def fail_processing(
+        **_,
+    ) -> None:
+        raise RuntimeError(
+            "GEHEIME CV-INHOUD"
+        )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "process_user_cv_candidate_profile",
+        fail_processing,
+    )
+
+    with caplog.at_level(
+        logging.ERROR,
+        logger=(
+            user_cv_route
+            .logger
+            .name
+        ),
+    ):
+        user_cv_route.process_user_cv_in_background(
+            user_id="user-1",
+            cv_id="cv-1",
+        )
+
+    assert (
+        "GEHEIME CV-INHOUD"
+        not in caplog.text
+    )
+
+    assert (
+        "RuntimeError"
+        in caplog.text
+    )
+
+    assert (
+        "Automatische verwerking"
+        in caplog.text
+    )
+
+
+def test_upload_succeeds_when_background_processing_fails(
+    monkeypatch,
+) -> None:
+    configure_successful_upload(
+        monkeypatch
+    )
+
+    def fail_processing(
+        **_,
+    ) -> None:
+        raise RuntimeError(
+            "Processing failure"
+        )
+
+    monkeypatch.setattr(
+        user_cv_route,
+        "process_user_cv_candidate_profile",
+        fail_processing,
+    )
+
+    class ImmediateBackgroundTasks:
+        """
+        Voer de task meteen uit zodat de test
+        bewijst dat een processing-fout de
+        upload-response niet stukmaakt.
+        """
+
+        def add_task(
+            self,
+            func,
+            *args,
+            **kwargs,
+        ) -> None:
+            func(
+                *args,
+                **kwargs,
+            )
+
+    file = UploadFile(
+        filename="Nieuw CV.pdf",
+        file=BytesIO(
+            b"%PDF-test"
+        ),
+    )
+
+    result = asyncio.run(
+        user_cv_route.upload_user_cv(
+            background_tasks=(
+                ImmediateBackgroundTasks()
+            ),
+            identity=IDENTITY,
+            file=file,
+        )
+    )
+
+    assert (
+        result.id
+        == "cv-new"
+    )
+
+    assert (
+        result.original_filename
+        == "Nieuw CV.pdf"
+    )
+
+    assert (
+        result.processing_status
+        == "uploaded"
+    )

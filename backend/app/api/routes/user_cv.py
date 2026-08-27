@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -31,6 +32,10 @@ from backend.app.schemas.user import (
 from backend.app.schemas.user_cv import (
     UserCvResponse,
 )
+
+from backend.app.services.candidate_profile_processing import (
+    process_user_cv_candidate_profile,
+)
 from backend.app.services.user_cv_files import (
     CvFileTooLargeError,
     CvValidationError,
@@ -49,6 +54,37 @@ logger = logging.getLogger(
 )
 
 router = APIRouter()
+
+def process_user_cv_in_background(
+    *,
+    user_id: str,
+    cv_id: str,
+) -> None:
+    """
+    Verwerk een geüpload CV buiten de upload-response.
+
+    Een fout in kandidaatprofielverwerking mag de
+    reeds geslaagde CV-upload nooit terugdraaien.
+    """
+
+    try:
+        process_user_cv_candidate_profile(
+            user_id=user_id,
+            cv_id=cv_id,
+        )
+
+    except Exception as exc:
+        # Log bewust alleen het fouttype.
+        # CV-inhoud, LLM-output en exception-message
+        # worden hier niet gelogd.
+        logger.error(
+            "Automatische verwerking van "
+            "basis-CV is mislukt. "
+            "Fouttype=%s",
+            type(
+                exc
+            ).__name__,
+        )
 
 
 @router.get(
@@ -240,6 +276,7 @@ async def download_current_user_cv(
     summary="Upload of vervang het basis-CV",
 )
 async def upload_user_cv(
+    background_tasks: BackgroundTasks,
     identity: Annotated[
         AuthenticatedIdentity,
         Depends(
@@ -408,6 +445,12 @@ async def upload_user_cv(
                 "niet worden opgeslagen."
             ),
         ) from exc
+
+    background_tasks.add_task(
+        process_user_cv_in_background,
+        user_id=identity.id,
+        cv_id=cv_id,
+    )
 
     return UserCvResponse(
         **active_cv
