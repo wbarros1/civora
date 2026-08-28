@@ -1506,6 +1506,8 @@ async function openProfile() {
 
 
 function closeProfile() {
+    cancelProfileCvPolling();
+
     elements.profileModal
         .classList
         .add(
