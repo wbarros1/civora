@@ -22,9 +22,18 @@ let currentSession = null;
 let currentUser = null;
 let currentUserCv = null;
 
+let profileCvPollTimer = null;
+let profileCvPollGeneration = 0;
+
 
 const API_BASE = "/api/v1";
 const PAGE_SIZE = 12;
+
+const PROFILE_CV_POLL_INTERVAL_MS =
+    2_000;
+
+const PROFILE_CV_POLL_MAX_ATTEMPTS =
+    30;
 
 const state = {
     offset: 0,
@@ -658,6 +667,340 @@ function setProfileCvBusy(
 }
 
 
+function isProfileCvProcessing(
+    value
+) {
+    return (
+        value === "uploaded"
+        || value === "processing"
+    );
+}
+
+
+function cancelProfileCvPolling() {
+    profileCvPollGeneration += 1;
+
+    if (
+        profileCvPollTimer
+        !== null
+    ) {
+        window.clearTimeout(
+            profileCvPollTimer
+        );
+
+        profileCvPollTimer = null;
+    }
+}
+
+
+function showCurrentProfileCvStatus(
+    {
+        afterUpload = false,
+    } = {}
+) {
+    if (!currentUserCv) {
+        return;
+    }
+
+    const processingStatus =
+        currentUserCv
+            .processing_status;
+
+    if (
+        processingStatus
+        === "failed"
+    ) {
+        showProfileCvMessage(
+            currentUserCv
+                .processing_error
+            || (
+                "De automatische verwerking "
+                + "van je basis-CV is mislukt."
+            )
+        );
+
+        return;
+    }
+
+    if (
+        isProfileCvProcessing(
+            processingStatus
+        )
+    ) {
+        showProfileCvMessage(
+            afterUpload
+                ? (
+                    "Je basis-CV is opgeslagen "
+                    + "en wordt verwerkt..."
+                )
+                : (
+                    "Je basis-CV wordt "
+                    + "verwerkt..."
+                ),
+            "success"
+        );
+
+        return;
+    }
+
+    if (
+        afterUpload
+        && processingStatus
+            === "ready"
+    ) {
+        showProfileCvMessage(
+            "Je basis-CV is opgeslagen "
+            + "en klaar voor gebruik.",
+            "success"
+        );
+    }
+}
+
+
+function startProfileCvPolling(
+    {
+        cvId,
+    }
+) {
+    cancelProfileCvPolling();
+
+    const generation =
+        profileCvPollGeneration;
+
+    let attempts = 0;
+
+    const scheduleNextPoll =
+        () => {
+            if (
+                generation
+                !== profileCvPollGeneration
+            ) {
+                return;
+            }
+
+            profileCvPollTimer =
+                window.setTimeout(
+                    poll,
+                    PROFILE_CV_POLL_INTERVAL_MS
+                );
+        };
+
+    const poll =
+        async () => {
+            profileCvPollTimer =
+                null;
+
+            if (
+                generation
+                !== profileCvPollGeneration
+            ) {
+                return;
+            }
+
+            if (!currentSession) {
+                cancelProfileCvPolling();
+
+                return;
+            }
+
+            if (
+                elements.profileModal
+                    .classList
+                    .contains(
+                        "hidden"
+                    )
+            ) {
+                cancelProfileCvPolling();
+
+                return;
+            }
+
+            if (
+                attempts
+                >= PROFILE_CV_POLL_MAX_ATTEMPTS
+            ) {
+                showProfileCvMessage(
+                    "Je basis-CV is opgeslagen, "
+                    + "maar de verwerking duurt "
+                    + "langer dan verwacht. "
+                    + "Open je profiel later "
+                    + "opnieuw om de status "
+                    + "te controleren.",
+                    "success"
+                );
+
+                return;
+            }
+
+            attempts += 1;
+
+            try {
+                const response =
+                    await apiFetch(
+                        "/user-cv"
+                    );
+
+                if (!response.ok) {
+                    throw new Error(
+                        "CV-status kon niet "
+                        + "worden opgehaald."
+                    );
+                }
+
+                const latestCv =
+                    await response.json();
+
+                if (
+                    generation
+                    !== profileCvPollGeneration
+                ) {
+                    return;
+                }
+
+                if (!latestCv) {
+                    currentUserCv = null;
+
+                    renderUserCv();
+
+                    cancelProfileCvPolling();
+
+                    return;
+                }
+
+                if (
+                    latestCv.id
+                    !== cvId
+                ) {
+                    cancelProfileCvPolling();
+
+                    return;
+                }
+
+                currentUserCv =
+                    latestCv;
+
+                renderUserCv();
+
+                const processingStatus =
+                    currentUserCv
+                        .processing_status;
+
+                if (
+                    processingStatus
+                    === "ready"
+                ) {
+                    cancelProfileCvPolling();
+
+                    showProfileCvMessage(
+                        "Je basis-CV is klaar "
+                        + "voor gebruik.",
+                        "success"
+                    );
+
+                    return;
+                }
+
+                if (
+                    processingStatus
+                    === "failed"
+                ) {
+                    cancelProfileCvPolling();
+
+                    showProfileCvMessage(
+                        currentUserCv
+                            .processing_error
+                        || (
+                            "De automatische "
+                            + "verwerking van je "
+                            + "basis-CV is mislukt."
+                        )
+                    );
+
+                    return;
+                }
+
+                if (
+                    isProfileCvProcessing(
+                        processingStatus
+                    )
+                ) {
+                    showProfileCvMessage(
+                        "Je basis-CV wordt "
+                        + "verwerkt...",
+                        "success"
+                    );
+
+                    scheduleNextPoll();
+
+                    return;
+                }
+
+                cancelProfileCvPolling();
+
+            } catch (error) {
+                if (
+                    generation
+                    !== profileCvPollGeneration
+                ) {
+                    return;
+                }
+
+                if (
+                    attempts
+                    >= (
+                        PROFILE_CV_POLL_MAX_ATTEMPTS
+                    )
+                ) {
+                    showProfileCvMessage(
+                        "De actuele CV-status "
+                        + "kon niet worden "
+                        + "opgehaald. Open je "
+                        + "profiel later opnieuw."
+                    );
+
+                    return;
+                }
+
+                scheduleNextPoll();
+            }
+        };
+
+    scheduleNextPoll();
+}
+
+
+function syncProfileCvProcessing(
+    {
+        afterUpload = false,
+    } = {}
+) {
+    cancelProfileCvPolling();
+
+    if (!currentUserCv) {
+        return;
+    }
+
+    showCurrentProfileCvStatus(
+        {
+            afterUpload,
+        }
+    );
+
+    if (
+        isProfileCvProcessing(
+            currentUserCv
+                .processing_status
+        )
+    ) {
+        startProfileCvPolling(
+            {
+                cvId:
+                    currentUserCv.id,
+            }
+        );
+    }
+}
+
 function renderUserCv() {
     elements.profileCvLoading
         .classList
@@ -777,10 +1120,14 @@ async function loadUserCv() {
 
         renderUserCv();
 
+        syncProfileCvProcessing();
+
     } catch (error) {
         console.error(
             error
         );
+
+        cancelProfileCvPolling();
 
         currentUserCv = null;
 
@@ -908,9 +1255,10 @@ async function uploadUserCv(
 
         renderUserCv();
 
-        showProfileCvMessage(
-            "Je basis-CV is opgeslagen.",
-            "success"
+        syncProfileCvProcessing(
+            {
+                afterUpload: true,
+            }
         );
 
     } catch (error) {
